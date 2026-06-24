@@ -47,6 +47,10 @@ BASELINES: dict[str, dict[str, Any]] = {
     "greedy_local": {"value": 2097.658, "label": "本地纯贪心基线 · large_seed301", "authoritative": False},
 }
 
+# 覆盖率真值(large_seed301): 贪心与求解器都覆盖 40/40——即"省成本不靠少接单"。
+# 来源: 指挥舱实施方案 §0.5 真跑(纯贪心 2097.658 覆盖40/40, solver 657.104 覆盖40/40)。
+COVERAGE: dict[str, Any] = {"covered": 40, "total": 40, "greedy_covered": 40, "note": "我们与贪心都全覆盖：省成本不靠少接单"}
+
 # 六阶段流水线 (Stage Rail)。来源映射见每项 source。
 STAGES: list[dict[str, str]] = [
     {"key": "perception", "cn": "看场景", "desc": "先判断现在是什么状况", "source": "autosolver_agent/system.py:perception"},
@@ -246,6 +250,7 @@ def build_payload() -> dict[str, Any]:
         "strategies": strategies,
         "best_so_far": BEST_SO_FAR,
         "baselines": BASELINES,
+        "coverage": COVERAGE,
         "regime_cn": REGIME_CN,
     }
 

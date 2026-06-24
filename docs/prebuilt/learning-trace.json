@@ -671,6 +671,12 @@
       "authoritative": false
     }
   },
+  "coverage": {
+    "covered": 40,
+    "total": 40,
+    "greedy_covered": 40,
+    "note": "我们与贪心都全覆盖：省成本不靠少接单"
+  },
   "regime_cn": {
     "large": "大单量场景",
     "small": "小单量平峰",

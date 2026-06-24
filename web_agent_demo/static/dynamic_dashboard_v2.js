@@ -91,23 +91,30 @@
     return pts.map((p, i) => { const xy = curveXY(p, w, h); return `${i ? "L" : "M"} ${xy.x.toFixed(1)},${xy[key].toFixed(1)}`; }).join(" ");
   }
 
-  function renderCurve(uptoFrac = 1) {
-    const svg = $("curveSvg"); if (!svg) return;
-    const w = 960, h = 200; svg.innerHTML = "";
-    // 订单密度淡柱
-    CURVE.forEach((p) => { const xy = curveXY(p, w, h);
-      svg.appendChild(el("rect", { x: xy.x, y: xy.loadY, width: 6, height: h - xy.loadY, fill: "rgba(134,160,182,.14)" })); });
-    const shown = CURVE.slice(0, Math.max(2, Math.round(CURVE.length * uptoFrac)));
-    svg.appendChild(el("path", { d: pathFrom(shown, "grY", w, h), fill: "none", stroke: "#ff9d4d", "stroke-width": 2.4 }));
-    svg.appendChild(el("path", { d: pathFrom(shown, "oursY", w, h), fill: "none", stroke: "#1cf4d2", "stroke-width": 2.6, filter: "none" }));
-    // 午高峰(订单最密)标注
-    const lunch = curveXY(CURVE.find((p) => p.m === 760) || CURVE[0], w, h);
-    svg.appendChild(el("line", { x1: lunch.x, y1: 0, x2: lunch.x, y2: h, stroke: "rgba(255,209,102,.3)", "stroke-dasharray": "3 4" }));
+  // 静态层只画一次(密度柱/标注/两条path壳); 动画帧只改 path 的 d, 避免每帧全树重建。
+  let _grPath = null, _oursPath = null, _curveBuilt = false;
+  const CW = 960, CH = 200;
+  function buildCurveStatic() {
+    const svg = $("curveSvg"); if (!svg) return; svg.innerHTML = "";
+    CURVE.forEach((p) => { const xy = curveXY(p, CW, CH);
+      svg.appendChild(el("rect", { x: xy.x, y: xy.loadY, width: 6, height: CH - xy.loadY, fill: "rgba(134,160,182,.14)" })); });
+    const lunch = curveXY(CURVE.find((p) => p.m === 760) || CURVE[0], CW, CH);
+    svg.appendChild(el("line", { x1: lunch.x, y1: 0, x2: lunch.x, y2: CH, stroke: "rgba(255,209,102,.3)", "stroke-dasharray": "3 4" }));
     const t = el("text", { x: lunch.x + 6, y: 16, fill: "#ffd166", "font-size": 12 }); t.textContent = "订单最密时段"; svg.appendChild(t);
+    _grPath = el("path", { fill: "none", stroke: "#ff9d4d", "stroke-width": 2.4 }); svg.appendChild(_grPath);
+    _oursPath = el("path", { fill: "none", stroke: "#1cf4d2", "stroke-width": 2.6 }); svg.appendChild(_oursPath);
+    _curveBuilt = true;
+  }
+  function renderCurve(uptoFrac = 1) {
+    if (!_curveBuilt) buildCurveStatic();
+    if (!_grPath) return;
+    const shown = CURVE.slice(0, Math.max(2, Math.round(CURVE.length * uptoFrac)));
+    _grPath.setAttribute("d", pathFrom(shown, "grY", CW, CH));
+    _oursPath.setAttribute("d", pathFrom(shown, "oursY", CW, CH));
   }
 
   // ---- 播放 ----
-  let playing = false, raf = 0;
+  let playing = false, raf = 0, pausedMs = 0;   // pausedMs 记录已播放进度, 实现真·继续
   function regimeAt(m) {
     const h = m / 60;
     if (h >= 11.5 && h <= 13.5) return ["大单量场景", "s-warn"];
@@ -122,27 +129,39 @@
   }
   function play() {
     if (playing) return; playing = true;
-    const dur = 8000, t0 = performance.now();
+    const dur = 8000, t0 = performance.now() - pausedMs;   // 从已播放进度续上
     const step = (now) => {
       const f = Math.min(1, (now - t0) / dur);
+      pausedMs = now - t0;                                  // 记录进度, 暂停后可续
       setClock(Math.round(f * 1440 / 20) * 20);
       renderCurve(f);
       if (f < 1 && playing) raf = requestAnimationFrame(step);
-      else { playing = false; $("dynPlay").textContent = "↻ 再放一遍"; setClock(1440); renderCurve(1); }
+      else if (f >= 1) { playing = false; pausedMs = 0; $("dynPlay").textContent = "↻ 再放一遍"; setClock(1440); renderCurve(1); }
     };
     $("dynPlay").textContent = "⏸ 仿真中…";
     raf = requestAnimationFrame(step);
   }
 
+  // 切幕时暂停/恢复右屏 SMIL 动画(隐藏时省电、避免投屏发热; SVGSVGElement API)
+  function setActive(isAct2) {
+    const r = $("mapRight");
+    if (!r || !r.pauseAnimations) return;
+    try { isAct2 ? r.unpauseAnimations() : r.pauseAnimations(); } catch (e) { /* 忽略不支持的浏览器 */ }
+  }
+
   function init() {
     renderMaps();
+    buildCurveStatic();
     renderCurve(1);
     setClock(0);
     const btn = $("dynPlay");
-    if (btn) btn.addEventListener("click", () => { if (playing) { playing = false; cancelAnimationFrame(raf); btn.textContent = "▶ 继续"; } else play(); });
+    if (btn) btn.addEventListener("click", () => {
+      if (playing) { playing = false; cancelAnimationFrame(raf); btn.textContent = "▶ 继续"; }
+      else play();
+    });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
   else init();
 
-  window.DynamicDashboard = { init, renderMaps, renderCurve };
+  window.DynamicDashboard = { init, renderMaps, renderCurve, setActive };
 })();

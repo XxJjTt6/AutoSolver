@@ -18,6 +18,7 @@
     document.querySelectorAll(".act-btn").forEach((b) =>
       b.classList.toggle("is-active", b.dataset.act === ACTS[actI]));
     $("nextBtn").textContent = actI < ACTS.length - 1 ? "下一步 ▶" : "重头看 ⟲";
+    if (window.DynamicDashboard && DynamicDashboard.setActive) DynamicDashboard.setActive(ACTS[actI] === "act2");
   }
   document.querySelectorAll(".act-btn").forEach((b) =>
     b.addEventListener("click", () => showAct(ACTS.indexOf(b.dataset.act))));
@@ -25,15 +26,17 @@
 
   // ---------- 第1幕：判决卡 ----------
   function renderVerdict() {
+    if (!DATA) return;
     const b = DATA.baselines;
-    const greedy = b.greedy_local.value, ours = b.local_realtime.value;
-    const save = ((greedy - ours) / greedy) * 100;
+    const greedy = b.greedy_local.value, official = b.official_case.value, ours = b.local_realtime.value;
+    // 头条用【官方权威 654.29】，省幅按官方口径；657 退到脚注（不在主屏冒充官方）。
+    const save = ((greedy - official) / greedy) * 100;
     $("vSave").textContent = save.toFixed(1) + "%";
-    // 3 个 KPI, 每个都带方向锚(↓成本越低越好 / ↑覆盖越高越好 / 官方权威). 减少认知负荷。
+    const cov = DATA.coverage || { covered: 40, total: 40 };
     const kpis = [
-      { k: "每单成本（本地复跑）", v: fmt(ours, 1), dir: "↓越低越好", sub: `原来贪心 ${fmt(greedy, 0)} → 省 ${save.toFixed(1)}%`, win: true },
-      { k: "接单覆盖率", v: "100%", dir: "↑越高越好", sub: "40/40 单全覆盖，几乎不漏单", win: true },
-      { k: "官方权威成绩", v: fmt(b.official_case.value, 2), dir: "", sub: `同算例官方成本（≈本地 ${fmt(ours, 0)} 互相印证）`, win: false },
+      { k: "每单成本（官方）", v: fmt(official, 2), dir: "↓越低越好", sub: `原来贪心 ${fmt(greedy, 0)} → 省 ${save.toFixed(1)}%`, win: true },
+      { k: "接单覆盖率", v: `${Math.round((cov.covered / cov.total) * 100)}%`, dir: "↑越高越好", sub: `${cov.covered}/${cov.total} 单全覆盖 · ${cov.note || "省成本不靠少接单"}`, win: false },
+      { k: "整体官方总分", v: fmt(b.official_total.value, 2), dir: "↑越高越好", sub: "10/10 满分提交", win: false },
     ];
     $("kpiRow").innerHTML = kpis.map((x) => `
       <div class="kpi">
@@ -42,10 +45,8 @@
         <div class="sub">${x.sub}</div>
       </div>`).join("");
     $("verdictFoot").innerHTML =
-      `怎么读：<b style="color:#1cf4d2">每单成本越低越好</b>（657 本地 ≈ 654.29 官方，互相印证），` +
-      `整体官方总分 <b style="color:#ffd166">${fmt(b.official_total.value, 2)}（10/10，越高越好）</b>。` +
-      `657 是本地复跑 large_seed301 的实时估算（非官方分），贪心 2097 同口径本地跑出。` +
-      `成本走 _solution_expected_cost、送达时间走路径几何，两者独立计算、互不影响。`;
+      `怎么读：<b style="color:#1cf4d2">右边每单成本更低（${fmt(official, 0)} vs 贪心 ${fmt(greedy, 0)}，省 ${save.toFixed(0)}%），数越小越好。</b>` +
+      ` <span style="color:#5b748b">本地复跑同算例实时估算 ${fmt(ours, 1)} ≈ 官方 ${fmt(official, 2)}，互相印证（🏷本地估算·非官方分）。更多口径见第3幕「评委可能会问」。</span>`;
   }
 
   // ---------- 第3幕：Stage Rail ----------
@@ -67,8 +68,8 @@
     $("stageRail").innerHTML = html;
     const s = DATA.stats;
     $("stageStat").innerHTML =
-      `${s.generated} 次试造 · ${s.validated} 次检查全过 · ${s.trial} 次试跑 · ` +
-      `<b>0 次采纳</b>（质检拦截 ${s.reject_quality} + 超时 ${s.reject_timeout}）` +
+      `${s.generated} 个新打法 · 安全检查全过 · ${s.trial} 次沙箱试跑 · ` +
+      `<b>0 个采纳</b>（质检拦截 ${s.reject_quality} + 超时 ${s.reject_timeout}）` +
       ` —— 没采纳 = 机制帮你挡掉了打不过现有方案的新打法。`;
   }
 
@@ -97,7 +98,7 @@
       body = `
         <div class="ev-title">${ev.strategy_id} → ${ev.regime_cn}</div>
         <div class="ev-line">针对「${ev.regime_cn}」试造了一个新打法，准备拿去检查、试跑。</div>
-        <div class="ev-line">目标算例：<b>${c.tasks ?? "?"} 单 · ${c.couriers ?? "?"} 骑手</b>${ev.degenerate ? ' <span class="ev-degen">（1×1 冒烟测试算例）</span>' : ""}</div>`;
+        <div class="ev-line">目标算例：<b>${c.tasks ?? "?"} 单 · ${c.couriers ?? "?"} 骑手</b>${ev.degenerate ? ' <span class="ev-degen">（只用 1 单 1 骑手跑通流程的探针，不计入正式成绩）</span>' : ""}</div>`;
     } else if (ev.event === "strategy_validated") {
       body = `
         <div class="ev-title">${ev.strategy_id}</div>
@@ -146,6 +147,7 @@
       d.addEventListener("click", () => { evIdx = +d.dataset.i; renderEventCard(); }));
   }
   function stepEvent(delta) {
+    if (!DATA || !DATA.events.length) return;          // 空数据保护: 防 %0 → NaN
     evIdx = (evIdx + delta + DATA.events.length) % DATA.events.length;
     renderEventCard();
   }
@@ -225,20 +227,35 @@
   $("replayBtn").addEventListener("click", () => $("onboarding").classList.remove("is-hidden"));
 
   // ---------- 加载 ----------
+  function showError(msg) {
+    let bar = $("globalError");
+    if (!bar) {
+      bar = document.createElement("div");
+      bar.id = "globalError"; bar.className = "global-error";
+      $("stage").prepend(bar);
+    }
+    bar.textContent = "⚠ " + msg;
+  }
   async function load() {
     try {
       const r = await fetch("/api/meeting-v2/learning-trace");
+      if (!r.ok) throw new Error("HTTP " + r.status);
       DATA = await r.json();
     } catch (e) {
-      $("eventCard").innerHTML = `<div class="ev-line">数据加载失败：${e}</div>`;
+      showError("数据加载失败，请刷新页面重试：" + e);
       return;
     }
+    // 常驻诚实声明
+    if (DATA.honest_note) $("honestBanner").textContent = "🎬 " + DATA.honest_note;
     renderVerdict();
     renderStageRail();
     renderEventCard();
     renderEvidence();
     renderLadder();
     renderQA();
+    // 空数据时禁用事件翻页
+    const empty = !DATA.events || !DATA.events.length;
+    $("evPrev").disabled = empty; $("evNext").disabled = empty;
     const q = new URLSearchParams(location.search);
     const a = parseInt(q.get("act") || "1", 10);
     showAct(Number.isFinite(a) ? a - 1 : 0);
