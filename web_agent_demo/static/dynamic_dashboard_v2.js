@@ -6,6 +6,7 @@
   const $ = (id) => document.getElementById(id);
   const NS = "http://www.w3.org/2000/svg";
   const el = (t, a) => { const n = document.createElementNS(NS, t); for (const k in a) n.setAttribute(k, a[k]); return n; };
+  const REDUCE = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // 确定性 RNG, 保证每次演示一致 (可复现)
   function mulberry32(seed) { return () => { seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
@@ -64,6 +65,13 @@
       // 右屏: 流动粒子线 (AutoSolver 采纳路线)
       if (window.FlowRoute) FlowRoute.render(right, pts, { id: "g" + grp.g, durationMs: 2700, phase: grp.g * 0.18 });
       drawNodes(left, grp); drawNodes(right, grp);
+      // 右屏: 骑手沿路线行进("车在动"，落实导师"车在不断移动"; 左屏贪心保持静态做对比)
+      if (window.FlowRoute && !REDUCE) {
+        const cour = el("circle", { r: 4.6, fill: "#34d39a", stroke: "#0a1422", "stroke-width": 1, filter: "url(#flowPinGlow)" });
+        cour.appendChild(el("animateMotion", { dur: "4.6s", begin: (grp.g * 0.4).toFixed(2) + "s",
+          repeatCount: "indefinite", path: FlowRoute.smoothPath(pts), rotate: "auto" }));
+        right.appendChild(cour);
+      }
     });
   }
 
