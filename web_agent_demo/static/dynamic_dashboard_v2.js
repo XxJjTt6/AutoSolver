@@ -145,8 +145,14 @@
   // 切幕时暂停/恢复右屏 SMIL 动画(隐藏时省电、避免投屏发热; SVGSVGElement API)
   function setActive(isAct2) {
     const r = $("mapRight");
-    if (!r || !r.pauseAnimations) return;
-    try { isAct2 ? r.unpauseAnimations() : r.pauseAnimations(); } catch (e) { /* 忽略不支持的浏览器 */ }
+    if (r && r.pauseAnimations) {
+      try { isAct2 ? r.unpauseAnimations() : r.pauseAnimations(); } catch (e) { /* 忽略不支持的浏览器 */ }
+    }
+    // 离开第2幕且仿真在跑: 停曲线 rAF(保留 pausedMs 可续), 别在后台空转。
+    if (!isAct2 && playing) {
+      playing = false; cancelAnimationFrame(raf);
+      const btn = $("dynPlay"); if (btn) btn.textContent = "▶ 继续";
+    }
   }
 
   function init() {

@@ -29,12 +29,13 @@
     if (!DATA) return;
     const b = DATA.baselines;
     const greedy = b.greedy_local.value, official = b.official_case.value, ours = b.local_realtime.value;
-    // 头条用【官方权威 654.29】，省幅按官方口径；657 退到脚注（不在主屏冒充官方）。
-    const save = ((greedy - official) / greedy) * 100;
+    // 头条成本值用【官方权威 654.29】; 省幅用【同口径本地比】(贪心 2097.7→本地 657.1)=唯一有效同口径比，
+    // 避免拿官方解÷本地贪心的混口径。657 仅作本地↔官方互证，不在头条冒充官方。
+    const save = ((greedy - ours) / greedy) * 100;
     $("vSave").textContent = save.toFixed(1) + "%";
     const cov = DATA.coverage || { covered: 40, total: 40 };
     const kpis = [
-      { k: "每单成本（官方）", v: fmt(official, 2), dir: "↓越低越好", sub: `原来贪心 ${fmt(greedy, 0)} → 省 ${save.toFixed(1)}%`, win: true },
+      { k: "每单成本（官方）", v: fmt(official, 2), dir: "↓越低越好", sub: `比贪心省 ${save.toFixed(1)}%（同口径本地：${fmt(greedy, 0)}→${fmt(ours, 0)}）`, win: true },
       { k: "接单覆盖率", v: `${Math.round((cov.covered / cov.total) * 100)}%`, dir: "↑越高越好", sub: `${cov.covered}/${cov.total} 单全覆盖 · ${cov.note || "省成本不靠少接单"}`, win: false },
       { k: "整体官方总分", v: fmt(b.official_total.value, 2), dir: "↑越高越好", sub: "10/10 满分提交", win: false },
     ];
@@ -45,8 +46,8 @@
         <div class="sub">${x.sub}</div>
       </div>`).join("");
     $("verdictFoot").innerHTML =
-      `怎么读：<b style="color:#1cf4d2">右边每单成本更低（${fmt(official, 0)} vs 贪心 ${fmt(greedy, 0)}，省 ${save.toFixed(0)}%），数越小越好。</b>` +
-      ` <span style="color:#5b748b">本地复跑同算例实时估算 ${fmt(ours, 1)} ≈ 官方 ${fmt(official, 2)}，互相印证（🏷本地估算·非官方分）。更多口径见第3幕「评委可能会问」。</span>`;
+      `怎么读：<b style="color:#1cf4d2">右边每单成本远低于贪心（同口径本地 ${fmt(greedy, 0)}→${fmt(ours, 0)}，省 ${save.toFixed(1)}%），数越小越好。</b>` +
+      ` <span style="color:#5b748b">官方权威同算例成本 ${fmt(official, 2)} ≈ 本地实时估算 ${fmt(ours, 1)}，互相印证（🏷本地估算·非官方分）。更多口径见第3幕「评委可能会问」。</span>`;
   }
 
   // ---------- 第3幕：Stage Rail ----------
@@ -66,10 +67,13 @@
       return `<div class="stage-node ${cls}" title="${st.desc}"><i class="sig"></i>${st.cn}</div>${arrow}`;
     }).join("");
     $("stageRail").innerHTML = html;
-    const s = DATA.stats;
+    // 统一用"策略级"口径(5 个新打法)，与成绩单/Q&A 一致，避免同屏 7 vs 5 自相矛盾。
+    const ss = DATA.strategies || [];
+    const nQ = ss.filter((s) => s.last_reason === "quality regression").length;
+    const nT = ss.filter((s) => s.last_reason === "timeout").length;
     $("stageStat").innerHTML =
-      `${s.generated} 个新打法 · 安全检查全过 · ${s.trial} 次沙箱试跑 · ` +
-      `<b>0 个采纳</b>（质检拦截 ${s.reject_quality} + 超时 ${s.reject_timeout}）` +
+      `${ss.length} 个新打法 · 安全检查全过 · <b>0 个上线</b>` +
+      `（${nQ} 个成绩不达标 + ${nT} 个超时）` +
       ` —— 没采纳 = 机制帮你挡掉了打不过现有方案的新打法。`;
   }
 
@@ -115,11 +119,13 @@
       else if (ev.cost_note) costLine = ev.cost_note;
       else if (ev.cost_vs_local) costLine = `本地成本 <b>${ev.cost_vs_local}</b>`;
       else costLine = "—";
+      const verdictLine = ev.degenerate ? "只验证流程能跑通，不计入正式判决。"
+        : ev.reason === "timeout" ? "试跑超时，自动撤回。" : "没打过现有最好方案 → 没上线。";
       body = `
-        <div class="ev-title">${ev.strategy_id} · ${ev.reason_cn}</div>
+        <div class="ev-title">${ev.strategy_id} · ${ev.degenerate ? "探针跑通流程" : ev.reason_cn}</div>
         <div class="ev-line">沙箱里隔离跑了一遍（耗时 ${fmt(ev.elapsed_ms, 1)} ms）。</div>
         <div class="ev-line">${costLine}</div>
-        <div class="ev-line"><b>${ev.reason === "timeout" ? "试跑超时，自动撤回。" : "没打过现有最好方案 → 没上线。"}</b></div>`;
+        <div class="ev-line"><b>${verdictLine}</b></div>`;
     }
     $("eventCard").innerHTML = `
       <span class="ev-kind ${kind.cls}">${kind.label}</span>
@@ -180,7 +186,8 @@
   // ---------- 第3幕：折叠 — 学到了什么（best-so-far 真实阶梯）----------
   function renderLadder() {
     const ladder = (DATA.best_so_far && DATA.best_so_far.length) ? DATA.best_so_far : [];
-    const top = ladder.length ? ladder[0].cost : DATA.baselines.greedy_local.value;
+    if (!ladder.length) { $("ladderBody").innerHTML = "<div class='shield-note'>暂无 best-so-far 记录</div>"; return; }
+    const top = ladder[0].cost;
     const rows = ladder.map((s, i) => {
       const drop = i === 0 ? "" : `<span class="lad-drop">↓ ${(((ladder[i - 1].cost - s.cost) / ladder[i - 1].cost) * 100).toFixed(0)}%</span>`;
       const barW = Math.max(4, (s.cost / top) * 100);
@@ -236,7 +243,7 @@
       ["是真在学习，还是预录的？", "学习是真的，发生在离线。底层是真实落盘记录（28 条事件 / 5 个策略），现场是回放，已标「演示回放」，因为现场不联网。"],
       ["5 个策略全被拒，不是没学会吗？", "恰恰相反——1 个超时、4 个不如现有方案，证明安全门 / 质量门有判别力，会自动淘汰打不过基线的策略。机制的价值是它敢说「不」。"],
       ["现场会改 solver 吗？", "不改。正式 solver 一行不动、热路径零 LLM。学习在离线隔离轨道，现场只做确定性安全召回。"],
-      ["657 / 68.7% 是官方分吗？", "不是。large_seed301 官方 654.29、整体 706.197。657 是本地复跑这一个算例的近似（贪心 2097→657），已标「本地实时估算·非官方分」。"],
+      ["657 / 68.7% 是官方分吗？", "不是。large_seed301 官方 654.29、整体 706.197。657 是本地复跑这一个算例的近似（同口径本地：贪心 2098→657，省 68.7%），已标「本地实时估算·非官方分」。"],
       ["进化的到底是什么？", "是对状况的识别，不是求解器。认得越准 → 挑的打法越对 → 结果越好。"],
       ["几个 agent / memory 怎么设计？", "对外四角色——感知 / 策略 / 执行评估 / 记忆进化——由一个统一控制器编排（内部映射 system.py 的 6 项能力），不是多进程。memory 三层 L0/L1/L2。"],
       ["ETA / deadline 可信吗？", "坐标 / deadline / 送达时间是仿真合成层、打了「演示」角标。关键：送达时间走路径几何、成本走独立的 _solution_expected_cost，两者不互喂，避免优化一个把另一个拆了。"],
@@ -265,9 +272,9 @@
     if (e.key === "Escape") { $("onboarding").classList.add("is-hidden"); sessionStorage.setItem("mtg_v2_onboard", "1"); return; }
     // 引导开着时不抢键
     if (!$("onboarding").classList.contains("is-hidden")) return;
-    if (e.key >= "1" && e.key <= "3") { showAct(parseInt(e.key, 10) - 1); return; }       // 数字跳幕
-    if (e.key === "ArrowRight") { if (ACTS[actI] === "act3") { stepEvent(1); e.preventDefault(); } else showAct(actI + 1); return; }
-    if (e.key === "ArrowLeft") { if (ACTS[actI] === "act3") { stepEvent(-1); e.preventDefault(); } else showAct(actI - 1); return; }
+    if (e.key >= "1" && e.key <= "3") { showAct(parseInt(e.key, 10) - 1); e.preventDefault(); return; }   // 数字跳幕
+    if (e.key === "ArrowRight") { ACTS[actI] === "act3" ? stepEvent(1) : showAct(actI + 1); e.preventDefault(); return; }
+    if (e.key === "ArrowLeft") { ACTS[actI] === "act3" ? stepEvent(-1) : showAct(actI - 1); e.preventDefault(); return; }
   });
 
   // ---------- 加载 ----------
