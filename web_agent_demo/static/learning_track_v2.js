@@ -197,6 +197,38 @@
         这是确定性搜索的 anytime 改进，<b>不是 LLM、不改 solver</b>。</div>`;
   }
 
+  // ---------- 第3幕：三层记忆 L0/L1/L2（v4 §16.10）----------
+  function renderMemory() {
+    if (!DATA) return;
+    // L2 = 按状况(regime)分组的策略经验（registry target_regime）
+    const byRegime = {};
+    (DATA.strategies || []).forEach((s) => {
+      const k = s.regime_cn || s.target_regime || "未标注状况";
+      (byRegime[k] = byRegime[k] || []).push(s);
+    });
+    const chips = Object.entries(byRegime).map(([rg, arr]) =>
+      `<span class="mem-chip">${rg} <b>×${arr.length}</b>　${arr.every((s) => s.accepted === 0) ? "都没过质检" : ""}</span>`).join("");
+    const n = (DATA.events || []).length;
+    $("memBody").innerHTML = `
+      <div class="mem-stack">
+        <div class="mem-row mem-l2">
+          <span class="mem-tag">L2 · 策略经验</span>
+          <div class="mem-desc">什么状况下、哪些打法试过（试过没用也记住，下次不再踩坑）${chips}</div>
+        </div>
+        <div class="mem-up">↑ 向上沉淀</div>
+        <div class="mem-row mem-l1">
+          <span class="mem-tag">L1 · 经历</span>
+          <div class="mem-desc">每次"试造→检查→试跑→判决"都记下来（就是上面那 ${n} 条时间线）</div>
+        </div>
+        <div class="mem-up">↑ 向上沉淀</div>
+        <div class="mem-row mem-l0">
+          <span class="mem-tag">L0 · 运行态</span>
+          <div class="mem-desc">这一次、此刻走到第几步（上方六阶段灯 + 时间线游标）</div>
+        </div>
+      </div>
+      <div class="shield-note" style="margin-top:8px">一句话：L0 是"现在在干嘛"，L1 是"这场景历史上试过啥"，L2 是"什么状况该用什么打法"。</div>`;
+  }
+
   // ---------- 第3幕：Q&A 速查（守诚实口径）----------
   function renderQA() {
     const QA = [
@@ -226,6 +258,18 @@
   });
   $("replayBtn").addEventListener("click", () => $("onboarding").classList.remove("is-hidden"));
 
+  // ---------- 键盘 a11y ----------
+  document.addEventListener("keydown", (e) => {
+    if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+    // Esc 关引导
+    if (e.key === "Escape") { $("onboarding").classList.add("is-hidden"); sessionStorage.setItem("mtg_v2_onboard", "1"); return; }
+    // 引导开着时不抢键
+    if (!$("onboarding").classList.contains("is-hidden")) return;
+    if (e.key >= "1" && e.key <= "3") { showAct(parseInt(e.key, 10) - 1); return; }       // 数字跳幕
+    if (e.key === "ArrowRight") { if (ACTS[actI] === "act3") { stepEvent(1); e.preventDefault(); } else showAct(actI + 1); return; }
+    if (e.key === "ArrowLeft") { if (ACTS[actI] === "act3") { stepEvent(-1); e.preventDefault(); } else showAct(actI - 1); return; }
+  });
+
   // ---------- 加载 ----------
   function showError(msg) {
     let bar = $("globalError");
@@ -252,6 +296,7 @@
     renderEventCard();
     renderEvidence();
     renderLadder();
+    renderMemory();
     renderQA();
     // 空数据时禁用事件翻页
     const empty = !DATA.events || !DATA.events.length;

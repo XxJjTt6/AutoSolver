@@ -197,6 +197,20 @@ main#stage{padding:22px 18px 60px;max-width:1180px;margin:0 auto}
 .lad-bar i{display:block;height:100%;background:linear-gradient(90deg,#1cf4d2,#5a9bff);border-radius:4px}
 .ladder-step .c{color:var(--ours);font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
 
+/* ---- 三层记忆 L0/L1/L2 ---- */
+.mem-stack{display:flex;flex-direction:column;gap:4px}
+.mem-row{display:flex;flex-direction:column;gap:3px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--panel2)}
+.mem-l2{border-color:rgba(28,244,210,.4)}
+.mem-l1{border-color:rgba(90,155,255,.35)}
+.mem-l0{border-color:rgba(134,160,182,.3)}
+.mem-tag{font-size:12px;font-weight:700;color:#eaf6ff}
+.mem-l2 .mem-tag{color:var(--ours)}
+.mem-l1 .mem-tag{color:var(--nomem)}
+.mem-desc{font-size:11.5px;color:var(--muted)}
+.mem-up{text-align:center;font-size:11px;color:var(--gold)}
+.mem-chip{display:inline-block;margin:4px 6px 0 0;font-size:11px;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:2px 9px}
+.mem-chip b{color:var(--ours)}
+
 .caption{margin-top:18px;font-size:12.5px;color:var(--dim);text-align:center}
 
 /* ---- onboarding ---- */
