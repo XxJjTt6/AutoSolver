@@ -12,3 +12,9 @@ autosolver_agent/evolution_state/evolution_memory.jsonl
 autosolver_agent/evolution_state/strategy_registry.json
 submission_dryrun/
 submission_final/
+
+# secrets & LLM runtime artifacts (never commit)
+.secrets/
+llm_runs/
+llm_memory/
+config.local.json
