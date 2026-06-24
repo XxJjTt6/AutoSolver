@@ -80,6 +80,16 @@
   <section class="act is-hidden" id="act3">
     <div class="act-summary">进化的是"对状况的识别"，不是求解器；正式 solver 现场一行都不改。下面每一步都真实发生过。</div>
 
+    <!-- 因果联动条：把"学习"讲清楚 = 认对状况 → 挑对打法 → 结果更好 -->
+    <div class="causal" id="causalStrip">
+      <div class="causal-node" data-link="perceive"><b>① 看场景</b><span>认出现在是什么状况</span></div>
+      <span class="causal-arrow">→</span>
+      <div class="causal-node" data-link="pick"><b>② 挑打法</b><span>对这状况选一套对的打法</span></div>
+      <span class="causal-arrow">→</span>
+      <div class="causal-node" data-link="result"><b>③ 结果更好</b><span>认得越准，结果越省</span></div>
+      <span class="causal-tail">这就是"学习"：进化的是<b>识别</b>，不是求解器。</span>
+    </div>
+
     <!-- Stage Rail：六阶段流水线，一行灯 -->
     <div id="stageRail" class="stage-rail"><!-- JS 注入 --></div>
     <div id="stageStat" class="stage-stat"></div>
@@ -88,7 +98,7 @@
       <!-- 事件时间线：默认主视觉，一次只亮当前 1 条 -->
       <div class="track-main">
         <div class="track-head">
-          <span class="track-h">它试过的每一步（真实记录·逐条回放）</span>
+          <span class="track-h">它试过的每一步 <span class="replay-chip">🎬 真实记录·放慢回放，非动画</span></span>
           <span class="track-nav">
             <button id="evPrev" class="mini-btn">◀</button>
             <span id="evPos" class="ev-pos">0 / 0</span>
@@ -111,6 +121,11 @@
         </details>
       </aside>
     </div>
+
+    <details class="fold qa-fold" id="qaFold">
+      <summary>💬 评委可能会问（点开看标准答法）<span class="fold-sub">守诚实口径，不等问也能照着讲</span></summary>
+      <div class="fold-body" id="qaBody"></div>
+    </details>
 
     <div class="caption" id="act3Caption">这些都是离线真实发生过的记录，我们放慢回放给你看。</div>
   </section>

@@ -29,12 +29,11 @@
     const greedy = b.greedy_local.value, ours = b.local_realtime.value;
     const save = ((greedy - ours) / greedy) * 100;
     $("vSave").textContent = save.toFixed(1) + "%";
-    // 四个 KPI: 每单成本 / 接单覆盖 / 准时(演示) / 求解耗时. 只有成本是真值对比, 其余 iter-02 接动态。
+    // 3 个 KPI, 每个都带方向锚(↓成本越低越好 / ↑覆盖越高越好 / 官方权威). 减少认知负荷。
     const kpis = [
-      { k: "每单成本", v: fmt(ours, 1), dir: "↓越低越好", sub: `原来贪心 ${fmt(greedy, 1)}`, win: true },
-      { k: "接单覆盖率", v: "100%", dir: "↑越高越好", sub: "40/40 单全覆盖", win: true },
-      { k: "权威成绩", v: fmt(b.official_case.value, 2), dir: "", sub: "官方 large_seed301（非本地）", win: false },
-      { k: "整体提交分", v: fmt(b.official_total.value, 2), dir: "", sub: "官方 10/10", win: false },
+      { k: "每单成本（本地复跑）", v: fmt(ours, 1), dir: "↓越低越好", sub: `原来贪心 ${fmt(greedy, 0)} → 省 ${save.toFixed(1)}%`, win: true },
+      { k: "接单覆盖率", v: "100%", dir: "↑越高越好", sub: "40/40 单全覆盖，几乎不漏单", win: true },
+      { k: "官方权威成绩", v: fmt(b.official_case.value, 2), dir: "", sub: `同算例官方成本（≈本地 ${fmt(ours, 0)} 互相印证）`, win: false },
     ];
     $("kpiRow").innerHTML = kpis.map((x) => `
       <div class="kpi">
@@ -43,9 +42,10 @@
         <div class="sub">${x.sub}</div>
       </div>`).join("");
     $("verdictFoot").innerHTML =
-      `口径说明：<b style="color:#ffd166">654.29 / 706.197 是官方权威分</b>；` +
-      `每单成本 657 是本地复跑 large_seed301 的实时估算（非官方），贪心基线 2097 同口径本地跑出。` +
-      `成本走 _solution_expected_cost，送达时间走路径几何，两者独立计算。`;
+      `怎么读：<b style="color:#1cf4d2">每单成本越低越好</b>（657 本地 ≈ 654.29 官方，互相印证），` +
+      `整体官方总分 <b style="color:#ffd166">${fmt(b.official_total.value, 2)}（10/10，越高越好）</b>。` +
+      `657 是本地复跑 large_seed301 的实时估算（非官方分），贪心 2097 同口径本地跑出。` +
+      `成本走 _solution_expected_cost、送达时间走路径几何，两者独立计算、互不影响。`;
   }
 
   // ---------- 第3幕：Stage Rail ----------
@@ -128,6 +128,14 @@
     $("evPos").textContent = `${evIdx + 1} / ${DATA.events.length}`;
     renderMiniRail();
     renderStageRail();
+    lightCausal(ev);
+  }
+  // 因果联动: 当前事件点亮 ①看场景 / ②挑打法 / ③结果 之一
+  function lightCausal(ev) {
+    const map = { strategy_generated: "perceive", strategy_validated: "pick", strategy_trial: "result" };
+    const lit = map[ev.event] || "";
+    document.querySelectorAll("#causalStrip .causal-node").forEach((n) =>
+      n.classList.toggle("is-lit", n.dataset.link === lit));
   }
   function renderMiniRail() {
     $("eventRailMini").innerHTML = DATA.events.map((ev, i) => {
@@ -178,6 +186,22 @@
       <div class="shield-note" style="margin-top:8px">"目前最好方案"在同一次求解里一路被压低（真 best_update 阶梯将在 iter-04 接入）。</div>`;
   }
 
+  // ---------- 第3幕：Q&A 速查（守诚实口径）----------
+  function renderQA() {
+    const QA = [
+      ["这页在比什么（看不懂）", "左贪心、右 AutoSolver，喂同一份订单。只看顶上几个数和底下两条线：右边更好、绿线越跑越好。"],
+      ["是真在学习，还是预录的？", "学习是真的，发生在离线。底层是真实落盘记录（28 条事件 / 5 个策略），现场是回放，已标「演示回放」，因为现场不联网。"],
+      ["5 个策略全被拒，不是没学会吗？", "恰恰相反——1 个超时、4 个不如现有方案，证明安全门 / 质量门有判别力，会自动淘汰打不过基线的策略。机制的价值是它敢说「不」。"],
+      ["现场会改 solver 吗？", "不改。正式 solver 一行不动、热路径零 LLM。学习在离线隔离轨道，现场只做确定性安全召回。"],
+      ["657 / 68.7% 是官方分吗？", "不是。large_seed301 官方 654.29、整体 706.197。657 是本地复跑这一个算例的近似（贪心 2097→657），已标「本地实时估算·非官方分」。"],
+      ["进化的到底是什么？", "是对状况的识别，不是求解器。认得越准 → 挑的打法越对 → 结果越好。"],
+      ["几个 agent / memory 怎么设计？", "对外四角色——感知 / 策略 / 执行评估 / 记忆进化——由一个统一控制器编排（内部映射 system.py 的 6 项能力），不是多进程。memory 三层 L0/L1/L2。"],
+      ["ETA / deadline 可信吗？", "坐标 / deadline / 送达时间是仿真合成层、打了「演示」角标。关键：送达时间走路径几何、成本走独立的 _solution_expected_cost，两者不互喂，避免优化一个把另一个拆了。"],
+    ];
+    $("qaBody").innerHTML = QA.map(([q, a]) =>
+      `<div class="qa-item"><div class="qa-q">${q}</div><div class="qa-a">${a}</div></div>`).join("");
+  }
+
   // ---------- onboarding ----------
   function maybeOnboard() {
     const q = new URLSearchParams(location.search);
@@ -205,6 +229,7 @@
     renderEventCard();
     renderEvidence();
     renderLadder();
+    renderQA();
     const q = new URLSearchParams(location.search);
     const a = parseInt(q.get("act") || "1", 10);
     showAct(Number.isFinite(a) ? a - 1 : 0);

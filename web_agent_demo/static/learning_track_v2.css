@@ -100,6 +100,29 @@ main#stage{padding:22px 18px 60px;max-width:1180px;margin:0 auto}
 .curve-svg{width:100%;height:170px;display:block}
 .curve-note{font-size:12px;color:var(--dim);margin-top:6px}
 
+/* ---- 因果联动条 ---- */
+.causal{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:rgba(13,29,48,.6);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:14px}
+.causal-node{display:flex;flex-direction:column;gap:1px;padding:6px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);transition:.2s}
+.causal-node b{color:#eaf6ff;font-size:13.5px}
+.causal-node span{color:var(--muted);font-size:11.5px}
+.causal-node.is-lit{border-color:var(--ours);background:rgba(28,244,210,.12);box-shadow:0 0 14px rgba(28,244,210,.18)}
+.causal-node.is-lit b{color:var(--ours)}
+.causal-arrow{color:var(--dim);font-size:18px}
+.causal-tail{margin-left:auto;font-size:12px;color:var(--muted)}
+.causal-tail b{color:var(--ours)}
+@media(max-width:760px){.causal-tail{margin-left:0;width:100%}}
+
+.replay-chip{font-size:11px;color:var(--ours);border:1px solid rgba(28,244,210,.35);border-radius:20px;padding:1px 8px;margin-left:8px;font-weight:400;white-space:nowrap}
+
+/* ---- Q&A 折叠 ---- */
+.qa-fold{margin-top:16px}
+.qa-item{padding:9px 0;border-bottom:1px dashed var(--line)}
+.qa-item:last-child{border-bottom:0}
+.qa-q{color:#eaf6ff;font-weight:700;font-size:13px;margin-bottom:3px}
+.qa-q::before{content:"Q ";color:var(--gold)}
+.qa-a{color:var(--muted);font-size:12.5px}
+.qa-a::before{content:"A ";color:var(--ours)}
+
 /* ---- Stage Rail ---- */
 .stage-rail{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
 .stage-node{display:flex;align-items:center;gap:7px;background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:7px 13px;font-size:13px}
