@@ -1,7 +1,13 @@
 // dashboard_v4.js —— 双屏动态对比 + 三泳道曲线 + 流动粒子线播放。
 (function () {
   const FR = window.FlowRoute, CH = window.Charts;
-  let trace = null, tick = 0, timer = null;
+  let trace = null, tick = 0, timer = null, commentary = {};
+  const DAY_START = 8 * 60, DAY_SPAN = 14 * 60;  // 仿真 0..T → 08:00~22:00
+  function dayTime(clockMin) {
+    const T = (trace && trace.meta && trace.meta.T) || 240;
+    const t = DAY_START + clockMin / T * DAY_SPAN;
+    return String(Math.floor(t / 60)).padStart(2, "0") + ":" + String(Math.floor(t % 60)).padStart(2, "0");
+  }
   const acc = { greedy: [], cold: [], warm: [] };   // 累计派单(按泳道)
   const costSeries = { greedy: [], cold: [], warm: [] };
 
@@ -24,6 +30,7 @@
     if (r.error) { $("src").textContent = "错误: " + r.error; return; }
     trace = r;
     $("src").textContent = (r.source === "live" ? "现场重算" : "演示回放") + " · " + (r.summary?.scenario_label || "");
+    try { commentary = (await (await fetch(`/api/v4/commentary?scenario=${scenario}`)).json()).by_tick || {}; } catch (e) { commentary = {}; }
     reset();
     FR.ensureDefs($("mapL")); FR.ensureDefs($("mapR"));
     drawArrival();
@@ -42,8 +49,8 @@
   function stepOnce() {
     if (!trace || tick >= trace.steps.length) { stop(); return; }
     const step = trace.steps[tick];
-    const mm = (step.clock_min || 0);
-    $("clock").textContent = String(Math.floor(mm / 60)).padStart(2, "0") + ":" + String(mm % 60).padStart(2, "0") + (step.speed_factor < 1 ? "  ⚠拥堵" : "");
+    $("clock").textContent = dayTime(step.clock_min || 0) + (step.speed_factor < 1 ? "  ⚠拥堵" : "");
+    updateCommentary(step.tick);
     ["greedy", "cold", "warm"].forEach((ln) => {
       const lane = step.lanes[ln];
       if (lane && lane.new_assignments) acc[ln] = acc[ln].concat(lane.new_assignments);
@@ -81,6 +88,16 @@
     });
     svg.appendChild(routesLayer);
     svg.appendChild(ptsLayer);
+  }
+
+  function updateCommentary(curTick) {
+    const keys = Object.keys(commentary).map(Number).sort((a, b) => a - b);
+    let pick = null;
+    keys.forEach((k) => { if (k <= curTick) pick = k; });
+    const el = $("cmtText");
+    if (pick == null) { el.textContent = "—"; return; }
+    const c = commentary[String(pick)];
+    el.textContent = `[${c.hhmm || ""} ${c.phase || ""}] ${c.text}`;
   }
 
   function renderVerdict(step) {

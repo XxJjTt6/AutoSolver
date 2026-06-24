@@ -29,6 +29,14 @@ class TestServerV4(unittest.TestCase):
         self.assertEqual(ev["status"], "ok")
         self.assertTrue(any(e["type"] == "judge" for e in ev["events"]))
 
+    def test_commentary(self):
+        r = server_v4.get_commentary("weekday_peaks")
+        self.assertIn("by_tick", r)
+        if r["by_tick"]:
+            any_c = next(iter(r["by_tick"].values()))
+            self.assertIn("text", any_c)
+            self.assertIn("phase", any_c)
+
     def test_index_has_mounts(self):
         html = server_v4.render_index()
         for token in ("mapL", "mapR", "costChart", "ribbon", "flow_route_v4.js", "dashboard_v4.js"):

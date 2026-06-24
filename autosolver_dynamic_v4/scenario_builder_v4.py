@@ -59,6 +59,26 @@ def speed_factor_at(clock_min: int, scenario: dict) -> float:
     return 1.0
 
 
+DAY_START_H = 8     # 仿真 0..T 分钟映射到真实一天 08:00~22:00（显示用）
+DAY_SPAN_H = 14
+_PEAK_NAMES = ["早高峰", "午高峰", "晚高峰"]
+
+
+def display_time(clock_min: int, scenario: dict) -> str:
+    frac = clock_min / max(1, scenario["T"])
+    total = DAY_START_H * 60 + frac * DAY_SPAN_H * 60
+    return f"{int(total // 60):02d}:{int(total % 60):02d}"
+
+
+def phase_label(clock_min: int, scenario: dict) -> str:
+    frac = clock_min / max(1, scenario["T"])
+    peaks = scenario["peaks"]
+    best = min(range(len(peaks)), key=lambda i: abs(frac - peaks[i][0]))
+    if abs(frac - peaks[best][0]) <= peaks[best][1] + 0.05:
+        return _PEAK_NAMES[best] if best < len(_PEAK_NAMES) else "高峰"
+    return "平峰"
+
+
 def list_scenarios() -> list[dict]:
     return [{"id": k, "label": v["label"], "T": v["T"], "tick_min": v["tick_min"],
              "has_shock": v.get("shock") is not None} for k, v in SCENARIOS.items()]

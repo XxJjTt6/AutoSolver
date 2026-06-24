@@ -56,6 +56,13 @@ def get_lineage() -> dict:
     return json.loads(f.read_text(encoding="utf-8"))
 
 
+def get_commentary(scenario: str = "weekday_peaks") -> dict:
+    f = DEMO_DYN / f"commentary_{scenario}.json"
+    if not f.exists():
+        return {"scenario": scenario, "by_tick": {}}
+    return json.loads(f.read_text(encoding="utf-8"))
+
+
 def get_events() -> dict:
     f = DEMO_LINEAGE / "events.jsonl"
     if not f.exists():
@@ -97,6 +104,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     q.get("scenario", ["weekday_peaks"])[0],
                     q.get("live", ["0"])[0] in ("1", "true"),
                 ))
+            if path == "/api/v4/commentary":
+                return self._send(get_commentary(q.get("scenario", ["weekday_peaks"])[0]))
             if path == "/api/v4/llm/lineage":
                 return self._send(get_lineage())
             if path == "/api/v4/llm/events":
@@ -132,6 +141,7 @@ def render_index() -> str:
   <div class=panel><div class=panel-h>左屏 · Greedy 基线</div><svg id=mapL viewBox="0 0 100 100" preserveAspectRatio=xMidYMid></svg></div>
   <div class=panel right><div class=panel-h>右屏 · AutoSolver（暖启动·发光流动粒子线）</div><svg id=mapR viewBox="0 0 100 100" preserveAspectRatio=xMidYMid></svg></div>
 </section>
+<section id=commentary class=commentary><span class=cmt-ico>🧠 调度解说（DeepSeek·只解说不决策）</span><span id=cmtText class=cmt-text>—</span></section>
 <section class=curves>
   <div class=chart-box><div class=chart-h>每单期望成本（越低越好）· greedy / cold / warm 三泳道</div><svg id=costChart viewBox="0 0 100 100" preserveAspectRatio=none></svg></div>
   <div class=chart-box><div class=chart-h>订单到达量（一天）</div><svg id=arrChart viewBox="0 0 100 100" preserveAspectRatio=none></svg></div>
