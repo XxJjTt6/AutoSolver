@@ -1,0 +1,19 @@
+{
+  "source": "deepseek (real run, large_seed301)",
+  "baseline_greedy": 2097.66,
+  "production": 657.1,
+  "strategies": {
+    "large": [
+      {
+        "sid": "gen_llm_large_v003",
+        "cost": 1048.77,
+        "file": "gen_llm_large_v003.py"
+      },
+      {
+        "sid": "gen_llm_large_v006",
+        "cost": 1048.77,
+        "file": "gen_llm_large_v006.py"
+      }
+    ]
+  }
+}

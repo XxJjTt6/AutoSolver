@@ -25,6 +25,11 @@ class TestSandbox(unittest.TestCase):
         ok, reason = sandbox_v4.safety_check_code(GOOD)
         self.assertTrue(ok, reason)
 
+    def test_allow_from_collections_import(self):
+        code = "from collections import defaultdict\ndef propose(candidates, all_tasks, deadline, helpers):\n    _ = deadline\n    return list(defaultdict(list).items())"
+        ok, reason = sandbox_v4.safety_check_code(code)
+        self.assertTrue(ok, reason)
+
     def test_reject_import_os(self):
         ok, reason = sandbox_v4.safety_check_code("import os\n" + GOOD)
         self.assertFalse(ok)

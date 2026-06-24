@@ -24,15 +24,17 @@ def _unsafe_reason(tree: ast.AST) -> str | None:
     for node in ast.walk(tree):
         if isinstance(node, ast.While):  # 增强：禁 while（防无界循环）
             return "unsafe loop: while (用 for + deadline 检查替代)"
-        if isinstance(node, (ast.Import, ast.ImportFrom)):
-            if isinstance(node, ast.ImportFrom) and node.module == "__future__":
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name.split(".", 1)[0] not in ALLOWED_IMPORTS:
+                    return f"unsafe import: {alias.name}"
+        if isinstance(node, ast.ImportFrom):
+            if node.module == "__future__":
                 continue
-            names = [alias.name.split(".", 1)[0] for alias in getattr(node, "names", [])]
-            if isinstance(node, ast.ImportFrom) and node.module:
-                names.append(node.module.split(".", 1)[0])
-            for name in names:
-                if name not in ALLOWED_IMPORTS:
-                    return f"unsafe import: {name}"
+            # 只校验来源模块（from collections import defaultdict 应放行）
+            root = (node.module or "").split(".", 1)[0]
+            if root not in ALLOWED_IMPORTS:
+                return f"unsafe import: {node.module}"
         if isinstance(node, ast.Call):
             func = node.func
             if isinstance(func, ast.Name) and func.id in BLOCKED_CALLS:

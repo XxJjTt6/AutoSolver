@@ -1,0 +1,63 @@
+{
+  "run_id": "deepseek_iter02_lineage",
+  "provider": "deepseek",
+  "model": "deepseek-chat",
+  "case": "large_seed301",
+  "regime": "large",
+  "baseline_greedy_cost": 2097.66,
+  "production_solver_cost": 657.1,
+  "best_llm_cost": 1048.77,
+  "rounds": 6,
+  "accepted_count": 6,
+  "lineage": [
+    {
+      "round": 1,
+      "strategy_id": "gen_llm_large_v002",
+      "accepted": true,
+      "cost": 1151.1,
+      "reason": "improved or matched baseline"
+    },
+    {
+      "round": 2,
+      "strategy_id": "gen_llm_large_v003",
+      "accepted": true,
+      "cost": 1048.77,
+      "reason": "improved or matched baseline"
+    },
+    {
+      "round": 3,
+      "strategy_id": "gen_llm_large_v004",
+      "accepted": true,
+      "cost": 1079.08,
+      "reason": "improved or matched baseline"
+    },
+    {
+      "round": 4,
+      "strategy_id": "gen_llm_large_v005",
+      "accepted": true,
+      "cost": 1151.1,
+      "reason": "improved or matched baseline"
+    },
+    {
+      "round": 5,
+      "strategy_id": "gen_llm_large_v006",
+      "accepted": true,
+      "cost": 1048.77,
+      "reason": "improved or matched baseline"
+    },
+    {
+      "round": 6,
+      "strategy_id": "gen_llm_large_v007",
+      "accepted": true,
+      "cost": 2042.84,
+      "reason": "improved or matched baseline"
+    }
+  ],
+  "usage": {
+    "provider": "deepseek",
+    "model": "deepseek-chat",
+    "calls": 35,
+    "prompt_tokens": 112612,
+    "completion_tokens": 9083
+  }
+}
