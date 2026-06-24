@@ -45,14 +45,34 @@
     </div>
   </section>
 
-  <!-- ============ 第2幕：动态·机制>算法（iter-02 接入双屏）============ -->
+  <!-- ============ 第2幕：动态·机制>算法（双屏 + 流动粒子线 + 两线曲线）============ -->
   <section class="act is-hidden" id="act2">
     <div class="act-summary">单子一波波来，来一波就重排；已经派出去的不动。按状况选打法 —— 缺的是机制，不是算法。</div>
-    <div class="placeholder">
-      <div class="ph-icon">🗺️</div>
-      <div class="ph-title">动态双屏仿真 + 流动粒子线</div>
-      <div class="ph-desc">左=普通贪心、右=AutoSolver，喂同一份动态订单流；底部橙/蓝两线实时对比。<br/>
-        右屏采纳路径用"亮头拖尾"的发光流动粒子线呈现。<span class="ph-tag">下一版（iter-02）接入</span></div>
+
+    <div class="dyn-toolbar">
+      <button id="dynPlay" class="next-btn">▶ 开始仿真这一天</button>
+      <span id="dynClock" class="dyn-clock">00:00</span>
+      <span id="dynRegime" class="dyn-regime">平峰</span>
+      <span class="dyn-spacer"></span>
+      <span class="legend-tag tag-demo">🏷 地图坐标/路线/送达时间=仿真合成（演示层）</span>
+    </div>
+
+    <div class="dual">
+      <div class="screen">
+        <div class="screen-head"><i class="dot dot-base"></i>普通贪心 · 固定策略<span class="screen-whatis">一直贪最近，不会换打法</span></div>
+        <svg id="mapLeft" class="map-svg" viewBox="0 0 460 300" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+      <div class="screen">
+        <div class="screen-head"><i class="dot dot-ours"></i>AutoSolver · 按状况挑打法<span class="screen-whatis">流动线=当前采纳路线</span></div>
+        <svg id="mapRight" class="map-svg" viewBox="0 0 460 300" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+    </div>
+
+    <div class="curve-wrap">
+      <div class="curve-head"><b>平均送达时间</b>（分钟，↓越低越好）· <span class="c-base">橙=普通</span> <span class="c-ours">青=AutoSolver</span>
+        <span class="legend-tag tag-demo" style="margin-left:8px">演示合成</span></div>
+      <svg id="curveSvg" class="curve-svg" viewBox="0 0 960 200" preserveAspectRatio="none"></svg>
+      <div id="curveNote" class="curve-note">午高峰压力最大时差距最明显：AutoSolver 切到对应打法，普通贪心送达时间飙升。</div>
     </div>
   </section>
 
@@ -111,6 +131,8 @@
   </div>
 </div>
 
+<script src="/assets/flow_route_v2.js"></script>
+<script src="/assets/dynamic_dashboard_v2.js"></script>
 <script src="/assets/learning_track_v2.js"></script>
 </body>
 </html>
