@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>AutoSolver · 即时履约智能调度（会议方案 v4 演示）</title>
+<link rel="stylesheet" href="/assets/learning_track_v2.css" />
+</head>
+<body>
+
+<!-- 常驻图例条：全程不消失，承担"颜色约定 + 演示角标"双职责 -->
+<header id="legendBar" class="legend-bar">
+  <span class="brand">AutoSolver</span>
+  <span class="legend-item"><i class="dot dot-ours"></i>我们的方案</span>
+  <span class="legend-item"><i class="dot dot-base"></i>普通方案</span>
+  <span class="legend-item"><i class="dot dot-nomem"></i>我们的(不带记忆)</span>
+  <span class="legend-item"><i class="flow-chip"></i>流动线=当前采纳路线</span>
+  <span class="legend-spacer"></span>
+  <span class="legend-tag tag-demo">🏷 演示数据=仿真合成</span>
+  <span class="legend-tag tag-replay">🎬 离线真实记录·回放</span>
+</header>
+
+<!-- 三幕单线导航 -->
+<nav id="actNav" class="act-nav">
+  <button class="act-btn is-active" data-act="act1"><b>第1幕</b> 结果先行</button>
+  <button class="act-btn" data-act="act2"><b>第2幕</b> 动态·机制&gt;算法</button>
+  <button class="act-btn" data-act="act3"><b>第3幕</b> 自主学习</button>
+  <span class="nav-spacer"></span>
+  <button id="replayBtn" class="ghost-btn" title="重看引导">＝ 怎么看</button>
+  <button id="nextBtn" class="next-btn">下一步 ▶</button>
+</nav>
+
+<main id="stage">
+
+  <!-- ============ 第1幕：结果先行 ============ -->
+  <section class="act" id="act1">
+    <div class="act-summary">同一份订单、同一个时钟、同一套指标 —— 右边（我们的方案）更省、更准时。</div>
+    <div id="verdictCard" class="verdict-card">
+      <div class="verdict-head">
+        <span class="verdict-title">AutoSolver vs 普通贪心 · 同台对比（large_seed301）</span>
+        <span class="verdict-win">省了 <b id="vSave">—</b> ✅</span>
+      </div>
+      <div class="kpi-row" id="kpiRow"><!-- JS 注入 --></div>
+      <div class="verdict-foot" id="verdictFoot"></div>
+    </div>
+  </section>
+
+  <!-- ============ 第2幕：动态·机制>算法（iter-02 接入双屏）============ -->
+  <section class="act is-hidden" id="act2">
+    <div class="act-summary">单子一波波来，来一波就重排；已经派出去的不动。按状况选打法 —— 缺的是机制，不是算法。</div>
+    <div class="placeholder">
+      <div class="ph-icon">🗺️</div>
+      <div class="ph-title">动态双屏仿真 + 流动粒子线</div>
+      <div class="ph-desc">左=普通贪心、右=AutoSolver，喂同一份动态订单流；底部橙/蓝两线实时对比。<br/>
+        右屏采纳路径用"亮头拖尾"的发光流动粒子线呈现。<span class="ph-tag">下一版（iter-02）接入</span></div>
+    </div>
+  </section>
+
+  <!-- ============ 第3幕：自主学习（学习轨道控制台）============ -->
+  <section class="act is-hidden" id="act3">
+    <div class="act-summary">进化的是"对状况的识别"，不是求解器；正式 solver 现场一行都不改。下面每一步都真实发生过。</div>
+
+    <!-- Stage Rail：六阶段流水线，一行灯 -->
+    <div id="stageRail" class="stage-rail"><!-- JS 注入 --></div>
+    <div id="stageStat" class="stage-stat"></div>
+
+    <div class="track-grid">
+      <!-- 事件时间线：默认主视觉，一次只亮当前 1 条 -->
+      <div class="track-main">
+        <div class="track-head">
+          <span class="track-h">它试过的每一步（真实记录·逐条回放）</span>
+          <span class="track-nav">
+            <button id="evPrev" class="mini-btn">◀</button>
+            <span id="evPos" class="ev-pos">0 / 0</span>
+            <button id="evNext" class="mini-btn">▶</button>
+          </span>
+        </div>
+        <div id="eventCard" class="event-card"><!-- JS 注入当前事件 --></div>
+        <div id="eventRailMini" class="event-rail-mini"><!-- 小进度点 --></div>
+      </div>
+
+      <!-- 折叠结果区 -->
+      <aside class="track-side">
+        <details class="fold" id="ladderFold">
+          <summary>▸ 学到了什么<span class="fold-sub">目前最好方案越找越好</span></summary>
+          <div class="fold-body" id="ladderBody"></div>
+        </details>
+        <details class="fold" id="evidenceFold">
+          <summary>🛡 试造打法的成绩单<span class="fold-sub">点开才看 · 防误读</span></summary>
+          <div class="fold-body" id="evidenceBody"></div>
+        </details>
+      </aside>
+    </div>
+
+    <div class="caption" id="act3Caption">这些都是离线真实发生过的记录，我们放慢回放给你看。</div>
+  </section>
+
+</main>
+
+<!-- 5 秒 onboarding -->
+<div id="onboarding" class="onboarding is-hidden">
+  <div class="ob-card">
+    <div class="ob-title">这页怎么看（5 秒）</div>
+    <ol class="ob-steps">
+      <li><b>① 谁赢看这里</b>：顶部判决卡，一个百分比就是结论。</li>
+      <li><b>② 左右对比</b>：左＝普通方案，右＝我们的方案，喂同一份订单。</li>
+      <li><b>③ 越往右越优</b>：底部曲线绿线压橙线。</li>
+    </ol>
+    <div class="ob-legend">🟩 我们的方案　🟧 普通方案　🔵 我们的(不带记忆)</div>
+    <button id="obStart" class="next-btn">开始演示 ▶</button>
+  </div>
+</div>
+
+<script src="/assets/learning_track_v2.js"></script>
+</body>
+</html>

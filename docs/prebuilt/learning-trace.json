@@ -1,0 +1,664 @@
+{
+  "schema_version": 1,
+  "source": "autosolver_agent/evolution_state (真实离线进化落盘记录)",
+  "honest_note": "现场零 LLM · 离线真实记录回放 · 5 策略全被拒=质量门有判别力",
+  "stages": [
+    {
+      "key": "perception",
+      "cn": "看场景",
+      "desc": "先判断现在是什么状况",
+      "source": "autosolver_agent/system.py:perception"
+    },
+    {
+      "key": "generate",
+      "cn": "试造打法",
+      "desc": "针对状况生成一个新策略",
+      "source": "strategy_generated"
+    },
+    {
+      "key": "safety",
+      "cn": "安全检查",
+      "desc": "AST 安全门 + 接口校验",
+      "source": "strategy_validated"
+    },
+    {
+      "key": "sandbox",
+      "cn": "沙箱试跑",
+      "desc": "隔离跑一遍看成绩",
+      "source": "strategy_trial.elapsed_ms"
+    },
+    {
+      "key": "judge",
+      "cn": "质量门判决",
+      "desc": "打不过现有最好方案就不上线",
+      "source": "strategy_trial.decision"
+    },
+    {
+      "key": "memory",
+      "cn": "记下来",
+      "desc": "结果沉淀进记忆 / 移出活跃池",
+      "source": "strategy_registry.rollback_action"
+    }
+  ],
+  "events": [
+    {
+      "idx": 0,
+      "created_at": "2026-06-07T21:54:08",
+      "event": "strategy_generated",
+      "strategy_id": "gen_small_v001",
+      "regime": "small",
+      "regime_cn": "小单量平峰",
+      "stage": "generate",
+      "case": {
+        "tasks": 12,
+        "couriers": 25,
+        "rows": 201,
+        "avg_willingness": 0.480989
+      },
+      "degenerate": false
+    },
+    {
+      "idx": 1,
+      "created_at": "2026-06-07T21:54:08",
+      "event": "strategy_validated",
+      "strategy_id": "gen_small_v001",
+      "regime": null,
+      "regime_cn": "未标注状况",
+      "stage": "safety",
+      "syntax_passed": true,
+      "safety_passed": true,
+      "interface_passed": true,
+      "status": "sandboxed",
+      "reason": "passed"
+    },
+    {
+      "idx": 2,
+      "created_at": "2026-06-07T21:54:09",
+      "event": "strategy_validated",
+      "strategy_id": "gen_small_v001",
+      "regime": null,
+      "regime_cn": "未标注状况",
+      "stage": "safety",
+      "syntax_passed": true,
+      "safety_passed": true,
+      "interface_passed": true,
+      "status": "sandboxed",
+      "reason": "passed"
+    },
+    {
+      "idx": 3,
+      "created_at": "2026-06-07T21:54:09",
+      "event": "strategy_trial",
+      "strategy_id": "gen_small_v001",
+      "regime": "small",
+      "regime_cn": "小单量平峰",
+      "stage": "judge",
+      "accepted": false,
+      "decision": "reject",
+      "reason": "quality regression",
+      "reason_cn": "成绩不如现有方案",
+      "elapsed_ms": 167.422,
+      "local_cost": 730.9443411999998,
+      "degenerate": false,
+      "case": {
+        "tasks": 12,
+        "couriers": 25,
+        "rows": 201
+      },
+      "cost_note": "未达标 (quality regression)"
+    },
+    {
+      "idx": 4,
+      "created_at": "2026-06-07T21:54:34",
+      "event": "strategy_generated",
+      "strategy_id": "gen_large_v001",
+      "regime": "large",
+      "regime_cn": "大单量场景",
+      "stage": "generate",
+      "case": {
+        "tasks": 40,
+        "couriers": 80,
+        "rows": 33780,
+        "avg_willingness": 0.299973
+      },
+      "degenerate": false
+    },
+    {
+      "idx": 5,
+      "created_at": "2026-06-07T21:54:34",
+      "event": "strategy_validated",
+      "strategy_id": "gen_large_v001",
+      "regime": null,
+      "regime_cn": "未标注状况",
+      "stage": "safety",
+      "syntax_passed": true,
+      "safety_passed": true,
+      "interface_passed": true,
+      "status": "sandboxed",
+      "reason": "passed"
+    },
+    {
+      "idx": 6,
+      "created_at": "2026-06-07T21:54:37",
+      "event": "strategy_validated",
+      "strategy_id": "gen_large_v001",
+      "regime": null,
+      "regime_cn": "未标注状况",
+      "stage": "safety",
+      "syntax_passed": true,
+      "safety_passed": true,
+      "interface_passed": true,
+      "status": "sandboxed",
+      "reason": "passed"
+    },
+    {
+      "idx": 7,
+      "created_at": "2026-06-07T21:54:37",
+      "event": "strategy_trial",
+      "strategy_id": "gen_large_v001",
+      "regime": "large",
+      "regime_cn": "大单量场景",
+      "stage": "sandbox",
+      "accepted": false,
+      "decision": "reject",
+      "reason": "timeout",
+      "reason_cn": "试跑超时",
+      "elapsed_ms": 324.704,
+      "local_cost": null,
+      "degenerate": false,
+      "case": {
+        "tasks": 40,
+        "couriers": 80,
+        "rows": 33780
+      },
+      "cost_note": "试跑超时, 未产出成本"
+    },
+    {
+      "idx": 8,
+      "created_at": "2026-06-21T16:23:42",
+      "event": "strategy_generated",
+      "strategy_id": "gen_large_v002",
+      "regime": "large",
+      "regime_cn": "大单量场景",
+      "stage": "generate",
+      "case": {
+        "tasks": 1,
+        "couriers": 1,
+        "rows": 1,
+        "avg_willingness": 0.9
+      },
+      "degenerate": true
+    },
+    {
+      "idx": 9,
+      "created_at": "2026-06-21T16:23:42",
+      "event": "strategy_validated",
+      "strategy_id": "gen_large_v002",
+      "regime": null,
+      "regime_cn": "未标注状况",
+      "stage": "safety",
+      "syntax_passed": true,
+      "safety_passed": true,
+      "interface_passed": true,
+      "status": "sandboxed",
+      "reason": "passed"
+    },
+    {
+      "idx": 10,
+      "created_at": "2026-06-21T16:23:42",
+      "event": "strategy_validated",
+      "strategy_id": "gen_large_v002",
+      "regime": null,
+      "regime_cn": "未标注状况",
+      "stage": "safety",
+      "syntax_passed": true,
+      "safety_passed": true,
+      "interface_passed": true,
+      "status": "sandboxed",
+      "reason": "passed"
+    },
+    {
+      "idx": 11,
+      "created_at": "2026-06-21T16:23:42",
+      "event": "strategy_trial",
+      "strategy_id": "gen_large_v002",
+      "regime": "large",
+      "regime_cn": "大单量场景",
+      "stage": "judge",
+      "accepted": false,
+      "decision": "reject",
+      "reason": "quality regression",
+      "reason_cn": "成绩不如现有方案",
+      "elapsed_ms": 1.682,
+      "local_cost": 1.0,
+      "degenerate": true,
+      "case": {
+        "tasks": 1,
+        "couriers": 1,
+        "rows": 1
+      },
+      "cost_note": "1×1 冒烟测试算例, 非正式对比"
+    },
+    {
+      "idx": 12,
+      "created_at": "2026-06-21T16:36:36",
+      "event": "strategy_generated",
+      "strategy_id": "gen_large_v003",
+      "regime": "large",
+      "regime_cn": "大单量场景",
+      "stage": "generate",
+      "case": {
+        "tasks": 40,
+        "couriers": 80,
+        "rows": 33780,
+        "avg_willingness": 0.299973
+      },
+      "degenerate": false
+    },
+    {
+      "idx": 13,
+      "created_at": "2026-06-21T16:36:36",
+      "event": "strategy_validated",
+      "strategy_id": "gen_large_v003",
+      "regime": null,
+      "regime_cn": "未标注状况",
+      "stage": "safety",
+      "syntax_passed": true,
+      "safety_passed": true,
+      "interface_passed": true,
+      "status": "sandboxed",
+      "reason": "passed"
+    },
+    {
+      "idx": 14,
+      "created_at": "2026-06-21T16:36:37",
+      "event": "strategy_validated",
+      "strategy_id": "gen_large_v003",
+      "regime": null,
+      "regime_cn": "未标注状况",
+      "stage": "safety",
+      "syntax_passed": true,
+      "safety_passed": true,
+      "interface_passed": true,
+      "status": "sandboxed",
+      "reason": "passed"
+    },
+    {
+      "idx": 15,
+      "created_at": "2026-06-21T16:36:37",
+      "event": "strategy_trial",
+      "strategy_id": "gen_large_v003",
+      "regime": "large",
+      "regime_cn": "大单量场景",
+      "stage": "judge",
+      "accepted": false,
+      "decision": "reject",
+      "reason": "quality regression",
+      "reason_cn": "成绩不如现有方案",
+      "elapsed_ms": 47.615,
+      "local_cost": 1151.0957585,
+      "degenerate": false,
+      "case": {
+        "tasks": 40,
+        "couriers": 80,
+        "rows": 33780
+      },
+      "beat_local": false,
+      "cost_vs_local": "1151.1 vs 现有 657.1 (本地估算)"
+    },
+    {
+      "idx": 16,
+      "created_at": "2026-06-21T16:53:25",
+      "event": "strategy_generated",
+      "strategy_id": "gen_large_v004",
+      "regime": "large",
+      "regime_cn": "大单量场景",
+      "stage": "generate",
+      "case": {
+        "tasks": 40,
+        "couriers": 80,
+        "rows": 33780,
+        "avg_willingness": 0.299973
+      },
+      "degenerate": false
+    },
+    {
+      "idx": 17,
+      "created_at": "2026-06-21T16:53:25",
+      "event": "strategy_validated",
+      "strategy_id": "gen_large_v004",
+      "regime": null,
+      "regime_cn": "未标注状况",
+      "stage": "safety",
+      "syntax_passed": true,
+      "safety_passed": true,
+      "interface_passed": true,
+      "status": "sandboxed",
+      "reason": "passed"
+    },
+    {
+      "idx": 18,
+      "created_at": "2026-06-21T16:53:26",
+      "event": "strategy_validated",
+      "strategy_id": "gen_large_v004",
+      "regime": null,
+      "regime_cn": "未标注状况",
+      "stage": "safety",
+      "syntax_passed": true,
+      "safety_passed": true,
+      "interface_passed": true,
+      "status": "sandboxed",
+      "reason": "passed"
+    },
+    {
+      "idx": 19,
+      "created_at": "2026-06-21T16:53:26",
+      "event": "strategy_trial",
+      "strategy_id": "gen_large_v004",
+      "regime": "large",
+      "regime_cn": "大单量场景",
+      "stage": "judge",
+      "accepted": false,
+      "decision": "reject",
+      "reason": "quality regression",
+      "reason_cn": "成绩不如现有方案",
+      "elapsed_ms": 42.812,
+      "local_cost": 1151.0957585,
+      "degenerate": false,
+      "case": {
+        "tasks": 40,
+        "couriers": 80,
+        "rows": 33780
+      },
+      "beat_local": false,
+      "cost_vs_local": "1151.1 vs 现有 657.1 (本地估算)"
+    },
+    {
+      "idx": 20,
+      "created_at": "2026-06-24T18:27:10",
+      "event": "strategy_generated",
+      "strategy_id": "gen_large_v002",
+      "regime": "large",
+      "regime_cn": "大单量场景",
+      "stage": "generate",
+      "case": {
+        "tasks": 40,
+        "couriers": 80,
+        "rows": 33780,
+        "avg_willingness": 0.299973
+      },
+      "degenerate": false
+    },
+    {
+      "idx": 21,
+      "created_at": "2026-06-24T18:27:10",
+      "event": "strategy_validated",
+      "strategy_id": "gen_large_v002",
+      "regime": null,
+      "regime_cn": "未标注状况",
+      "stage": "safety",
+      "syntax_passed": true,
+      "safety_passed": true,
+      "interface_passed": true,
+      "status": "sandboxed",
+      "reason": "passed"
+    },
+    {
+      "idx": 22,
+      "created_at": "2026-06-24T18:27:11",
+      "event": "strategy_validated",
+      "strategy_id": "gen_large_v002",
+      "regime": null,
+      "regime_cn": "未标注状况",
+      "stage": "safety",
+      "syntax_passed": true,
+      "safety_passed": true,
+      "interface_passed": true,
+      "status": "sandboxed",
+      "reason": "passed"
+    },
+    {
+      "idx": 23,
+      "created_at": "2026-06-24T18:27:11",
+      "event": "strategy_trial",
+      "strategy_id": "gen_large_v002",
+      "regime": "large",
+      "regime_cn": "大单量场景",
+      "stage": "judge",
+      "accepted": false,
+      "decision": "reject",
+      "reason": "quality regression",
+      "reason_cn": "成绩不如现有方案",
+      "elapsed_ms": 30.575,
+      "local_cost": 1151.0957585,
+      "degenerate": false,
+      "case": {
+        "tasks": 40,
+        "couriers": 80,
+        "rows": 33780
+      },
+      "beat_local": false,
+      "cost_vs_local": "1151.1 vs 现有 657.1 (本地估算)"
+    },
+    {
+      "idx": 24,
+      "created_at": "2026-06-24T18:27:24",
+      "event": "strategy_generated",
+      "strategy_id": "gen_large_v003",
+      "regime": "large",
+      "regime_cn": "大单量场景",
+      "stage": "generate",
+      "case": {
+        "tasks": 40,
+        "couriers": 80,
+        "rows": 33780,
+        "avg_willingness": 0.299973
+      },
+      "degenerate": false
+    },
+    {
+      "idx": 25,
+      "created_at": "2026-06-24T18:27:24",
+      "event": "strategy_validated",
+      "strategy_id": "gen_large_v003",
+      "regime": null,
+      "regime_cn": "未标注状况",
+      "stage": "safety",
+      "syntax_passed": true,
+      "safety_passed": true,
+      "interface_passed": true,
+      "status": "sandboxed",
+      "reason": "passed"
+    },
+    {
+      "idx": 26,
+      "created_at": "2026-06-24T18:27:24",
+      "event": "strategy_validated",
+      "strategy_id": "gen_large_v003",
+      "regime": null,
+      "regime_cn": "未标注状况",
+      "stage": "safety",
+      "syntax_passed": true,
+      "safety_passed": true,
+      "interface_passed": true,
+      "status": "sandboxed",
+      "reason": "passed"
+    },
+    {
+      "idx": 27,
+      "created_at": "2026-06-24T18:27:24",
+      "event": "strategy_trial",
+      "strategy_id": "gen_large_v003",
+      "regime": "large",
+      "regime_cn": "大单量场景",
+      "stage": "judge",
+      "accepted": false,
+      "decision": "reject",
+      "reason": "quality regression",
+      "reason_cn": "成绩不如现有方案",
+      "elapsed_ms": 32.096,
+      "local_cost": 1151.0957585,
+      "degenerate": false,
+      "case": {
+        "tasks": 40,
+        "couriers": 80,
+        "rows": 33780
+      },
+      "beat_local": false,
+      "cost_vs_local": "1151.1 vs 现有 657.1 (本地估算)"
+    }
+  ],
+  "stats": {
+    "generated": 7,
+    "validated": 14,
+    "trial": 7,
+    "accepted": 0,
+    "reject_quality": 6,
+    "reject_timeout": 1,
+    "safety_all_passed": true
+  },
+  "strategies": [
+    {
+      "strategy_id": "gen_large_v001",
+      "target_regime": "large",
+      "regime_cn": "大单量场景",
+      "accepted": 0,
+      "rejected": 1,
+      "attempts": 1,
+      "status": "rejected",
+      "last_reason": "timeout",
+      "last_reason_cn": "试跑超时",
+      "last_cost": null,
+      "safety_passed": true,
+      "safety_reason": "passed",
+      "rollback_action": "removed_from_active_pool",
+      "last_seen": "2026-06-07T21:54:37",
+      "case": {
+        "tasks": 40,
+        "couriers": 80,
+        "rows": 33780
+      },
+      "file": "/Users/比赛/FOR_AutoSolver_706.20_提交版/autosolver_agent/evolution_state/generated_strategies/gen_large_v001.py"
+    },
+    {
+      "strategy_id": "gen_large_v002",
+      "target_regime": "large",
+      "regime_cn": "大单量场景",
+      "accepted": 0,
+      "rejected": 1,
+      "attempts": 1,
+      "status": "rejected",
+      "last_reason": "quality regression",
+      "last_reason_cn": "成绩不如现有方案",
+      "last_cost": 1151.0957585,
+      "safety_passed": true,
+      "safety_reason": "passed",
+      "rollback_action": "removed_from_active_pool",
+      "last_seen": "2026-06-24T18:27:11",
+      "case": {
+        "tasks": 40,
+        "couriers": 80,
+        "rows": 33780
+      },
+      "file": "/Users/比赛/美团黑客松决赛/AI-Hackahton_meituan_logg_在这版上面改/autosolver_agent/evolution_state/generated_strategies/gen_large_v002.py",
+      "beat_local": false
+    },
+    {
+      "strategy_id": "gen_large_v003",
+      "target_regime": "large",
+      "regime_cn": "大单量场景",
+      "accepted": 0,
+      "rejected": 1,
+      "attempts": 1,
+      "status": "rejected",
+      "last_reason": "quality regression",
+      "last_reason_cn": "成绩不如现有方案",
+      "last_cost": 1151.0957585,
+      "safety_passed": true,
+      "safety_reason": "passed",
+      "rollback_action": "removed_from_active_pool",
+      "last_seen": "2026-06-24T18:27:24",
+      "case": {
+        "tasks": 40,
+        "couriers": 80,
+        "rows": 33780
+      },
+      "file": "/Users/比赛/美团黑客松决赛/AI-Hackahton_meituan_logg_在这版上面改/autosolver_agent/evolution_state/generated_strategies/gen_large_v003.py",
+      "beat_local": false
+    },
+    {
+      "strategy_id": "gen_large_v004",
+      "target_regime": "large",
+      "regime_cn": "大单量场景",
+      "accepted": 0,
+      "rejected": 1,
+      "attempts": 1,
+      "status": "rejected",
+      "last_reason": "quality regression",
+      "last_reason_cn": "成绩不如现有方案",
+      "last_cost": 1151.0957585,
+      "safety_passed": true,
+      "safety_reason": "passed",
+      "rollback_action": "removed_from_active_pool",
+      "last_seen": "2026-06-21T16:53:26",
+      "case": {
+        "tasks": 40,
+        "couriers": 80,
+        "rows": 33780
+      },
+      "file": "/Users/logcjj/Documents/GitHub/AI-Hackahton_meituan/autosolver_agent/evolution_state/generated_strategies/gen_large_v004.py",
+      "beat_local": false
+    },
+    {
+      "strategy_id": "gen_small_v001",
+      "target_regime": "small",
+      "regime_cn": "小单量平峰",
+      "accepted": 0,
+      "rejected": 1,
+      "attempts": 1,
+      "status": "rejected",
+      "last_reason": "quality regression",
+      "last_reason_cn": "成绩不如现有方案",
+      "last_cost": 730.9443411999998,
+      "safety_passed": true,
+      "safety_reason": "passed",
+      "rollback_action": "removed_from_active_pool",
+      "last_seen": "2026-06-07T21:54:09",
+      "case": {
+        "tasks": 12,
+        "couriers": 25,
+        "rows": 201
+      },
+      "file": "/Users/比赛/FOR_AutoSolver_706.20_提交版/autosolver_agent/evolution_state/generated_strategies/gen_small_v001.py"
+    }
+  ],
+  "baselines": {
+    "official_case": {
+      "value": 654.2935,
+      "label": "官方 · large_seed301 同名隐藏算例",
+      "authoritative": true
+    },
+    "official_total": {
+      "value": 706.197,
+      "label": "官方 · 整体提交分 (10/10)",
+      "authoritative": true
+    },
+    "local_realtime": {
+      "value": 657.104,
+      "label": "本地实时估算 · 非官方分",
+      "authoritative": false
+    },
+    "greedy_local": {
+      "value": 2097.658,
+      "label": "本地纯贪心基线 · large_seed301",
+      "authoritative": false
+    }
+  },
+  "regime_cn": {
+    "large": "大单量场景",
+    "small": "小单量平峰",
+    "low-willingness": "骑手不愿接",
+    "low_willingness": "骑手不愿接",
+    "scarce": "运力紧张"
+  }
+}
