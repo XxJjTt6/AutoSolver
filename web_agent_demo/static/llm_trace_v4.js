@@ -37,7 +37,11 @@
     // best-so-far 学习曲线（accepted 成本的 running min）
     let best = Infinity;
     const bestSeries = (lineage.lineage || []).map((l) => { if (l.accepted && l.cost != null) best = Math.min(best, l.cost); return isFinite(best) ? best : null; });
-    if (window.Charts) window.Charts.lineChart(byId("bestChart"), [{ name: "best", color: "#1cf4d2", width: 1.1, data: bestSeries }], { zeroBase: false });
+    const series = [{ name: "best", color: "#1cf4d2", width: 1.1, data: bestSeries }];
+    // 贪心基线(上)与生产求解器(下)参考线：一眼看出 LLM 学习从基线往生产口径逼近的进度（同为全量算例口径，可比）
+    if (lineage.baseline_greedy_cost) series.push({ name: "greedy", color: "#ff8c42", width: 0.5, data: bestSeries.map(() => lineage.baseline_greedy_cost) });
+    if (lineage.production_solver_cost) series.push({ name: "production", color: "#5fa8ff", width: 0.5, data: bestSeries.map(() => lineage.production_solver_cost) });
+    if (window.Charts) window.Charts.lineChart(byId("bestChart"), series, { zeroBase: false });
 
     // 默认展开第一轮
     const first = (lineage.lineage || [])[0];
