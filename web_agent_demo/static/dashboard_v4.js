@@ -24,14 +24,19 @@
     if (r.error) { $("src").textContent = "错误: " + r.error; return; }
     trace = r;
     $("src").textContent = (r.source === "live" ? "现场重算" : "演示回放") + " · " + (r.summary?.scenario_label || "");
-    tick = 0; acc.greedy = []; acc.cold = []; acc.warm = [];
-    costSeries.greedy = []; costSeries.cold = []; costSeries.warm = [];
-    [FR.ensureDefs($("mapL")), FR.ensureDefs($("mapR"))];
+    reset();
+    FR.ensureDefs($("mapL")); FR.ensureDefs($("mapR"));
     drawArrival();
-    play();
+    fastForward();   // 载入即渲染完整静态预览（便于一眼看懂/截图）；点播放再动画
   }
 
-  function play() { if (!trace) { loadTrace(); return; } stop(); timer = setInterval(stepOnce, 650); }
+  function reset() {
+    tick = 0; acc.greedy = []; acc.cold = []; acc.warm = [];
+    costSeries.greedy = []; costSeries.cold = []; costSeries.warm = [];
+  }
+  function fastForward() { while (trace && tick < trace.steps.length) stepOnce(); }
+  function animate() { if (!trace) { loadTrace(); return; } stop(); reset(); drawArrival(); timer = setInterval(stepOnce, 650); }
+  function play() { animate(); }
   function stop() { if (timer) clearInterval(timer); timer = null; }
 
   function stepOnce() {
@@ -57,16 +62,22 @@
     Array.from(svg.children).forEach((c) => { if (c.tagName !== "defs") svg.removeChild(c); });
     const routesLayer = FR.el("g", {});
     const ptsLayer = FR.el("g", {});
-    const shown = assigns.slice(-26); // 只画最近一批，避免过密
+    // 降噪：地图只展示"最近在途"的少量派单线（导师明确否决把所有策略线堆地图上）
+    const shown = assigns.slice(-8);
     shown.forEach((a, i) => {
       const pts = [a.courier_from, a.pickup, a.dropoff].filter(Boolean);
       if (pts.length >= 2) {
-        if (flow && i >= shown.length - 8) FR.renderFlowRoute(routesLayer, pts, { phase: (i % 8) / 8, durationMs: 2600 });
+        if (flow) FR.renderFlowRoute(routesLayer, pts, { phase: (i % 4) / 4, durationMs: 2600, active: i >= shown.length - 4 });
         else FR.renderPlainRoute(routesLayer, pts, {});
       }
-      ptsLayer.appendChild(FR.el("circle", { cx: a.pickup[0], cy: a.pickup[1], r: 0.9, fill: "#ffb648" }));       // 商家
-      ptsLayer.appendChild(FR.el("circle", { cx: a.dropoff[0], cy: a.dropoff[1], r: 0.8, fill: "#5fd0ff" }));      // 顾客
-      if (a.courier_from) ptsLayer.appendChild(FR.el("circle", { cx: a.courier_from[0], cy: a.courier_from[1], r: 0.7, fill: flow ? "#1cf4d2" : "#9fb3c8" })); // 骑手
+    });
+    // 所有已派点位淡淡铺底（给空间感，但不连线）
+    assigns.slice(-40).forEach((a) => {
+      ptsLayer.appendChild(FR.el("circle", { cx: a.pickup[0], cy: a.pickup[1], r: 0.7, fill: "#ffb648", opacity: 0.55 }));
+      ptsLayer.appendChild(FR.el("circle", { cx: a.dropoff[0], cy: a.dropoff[1], r: 0.6, fill: "#5fd0ff", opacity: 0.5 }));
+    });
+    shown.forEach((a) => {
+      if (a.courier_from) ptsLayer.appendChild(FR.el("circle", { cx: a.courier_from[0], cy: a.courier_from[1], r: 0.9, fill: flow ? "#1cf4d2" : "#9fb3c8" }));
     });
     svg.appendChild(routesLayer);
     svg.appendChild(ptsLayer);
@@ -101,9 +112,10 @@
     CH.barChart($("arrChart"), trace.meta?.arrival_hist || [], { color: "#3a6ea5", marker: tick });
   }
 
-  function boot() {
-    loadScenarios();
-    $("play").onclick = () => { if (timer) { stop(); $("play").textContent = "▶ 继续"; } else { if (!trace) loadTrace(); else play(); $("play").textContent = "⏸ 暂停"; } };
+  async function boot() {
+    await loadScenarios();
+    $("play").onclick = () => { if (timer) { stop(); $("play").textContent = "▶ 播放动态仿真"; } else { animate(); $("play").textContent = "⏸ 暂停"; } };
+    loadTrace();   // 自动载入默认场景的静态预览
   }
   if (document.readyState !== "loading") boot(); else document.addEventListener("DOMContentLoaded", boot);
 })();
