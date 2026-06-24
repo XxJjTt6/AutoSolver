@@ -1,0 +1,251 @@
+{
+  "gen_large_v001": {
+    "accepted": 0,
+    "attempts": 1,
+    "case_profile_history": [
+      {
+        "accepted": false,
+        "avg_willingness": 0.299973,
+        "couriers": 80,
+        "decision": "reject",
+        "has_bundles": true,
+        "regime": "large",
+        "rows": 33780,
+        "tasks": 40
+      }
+    ],
+    "file": "/Users/比赛/FOR_AutoSolver_706.20_提交版/autosolver_agent/evolution_state/generated_strategies/gen_large_v001.py",
+    "last_case_profile": {
+      "avg_willingness": 0.299973,
+      "couriers": 80,
+      "has_bundles": true,
+      "regime": "large",
+      "rows": 33780,
+      "tasks": 40
+    },
+    "last_decision": "reject",
+    "last_reason": "timeout",
+    "last_seen": "2026-06-07T21:54:37",
+    "origin_case_profile": {
+      "avg_willingness": 0.299973,
+      "couriers": 80,
+      "has_bundles": true,
+      "regime": "large",
+      "rows": 33780,
+      "tasks": 40
+    },
+    "rejected": 1,
+    "rollback_action": "removed_from_active_pool",
+    "safety_passed": true,
+    "safety_reason": "passed",
+    "source": "run_agent:large_seed301:best-so-far experiment",
+    "status": "rejected",
+    "target_regime": "large"
+  },
+  "gen_large_v002": {
+    "accepted": 0,
+    "attempts": 1,
+    "case_profile_history": [
+      {
+        "accepted": false,
+        "avg_willingness": 0.9,
+        "couriers": 1,
+        "decision": "reject",
+        "has_bundles": false,
+        "regime": "large",
+        "rows": 1,
+        "tasks": 1
+      },
+      {
+        "accepted": false,
+        "avg_willingness": 0.299973,
+        "couriers": 80,
+        "decision": "reject",
+        "has_bundles": true,
+        "regime": "large",
+        "rows": 33780,
+        "tasks": 40
+      }
+    ],
+    "file": "/Users/比赛/美团黑客松决赛/AI-Hackahton_meituan_logg_在这版上面改/autosolver_agent/evolution_state/generated_strategies/gen_large_v002.py",
+    "last_case_profile": {
+      "avg_willingness": 0.299973,
+      "couriers": 80,
+      "has_bundles": true,
+      "regime": "large",
+      "rows": 33780,
+      "tasks": 40
+    },
+    "last_cost": 1151.0957585,
+    "last_decision": "reject",
+    "last_reason": "quality regression",
+    "last_seen": "2026-06-24T18:27:11",
+    "origin_case_profile": {
+      "avg_willingness": 0.299973,
+      "couriers": 80,
+      "has_bundles": true,
+      "regime": "large",
+      "rows": 33780,
+      "tasks": 40
+    },
+    "rejected": 1,
+    "rollback_action": "removed_from_active_pool",
+    "safety_passed": true,
+    "safety_reason": "passed",
+    "source": "run_agent:large_seed301:best-so-far experiment",
+    "status": "rejected",
+    "target_regime": "large"
+  },
+  "gen_large_v003": {
+    "accepted": 0,
+    "attempts": 1,
+    "case_profile_history": [
+      {
+        "accepted": false,
+        "avg_willingness": 0.299973,
+        "couriers": 80,
+        "decision": "reject",
+        "has_bundles": true,
+        "regime": "large",
+        "rows": 33780,
+        "tasks": 40
+      },
+      {
+        "accepted": false,
+        "avg_willingness": 0.299973,
+        "couriers": 80,
+        "decision": "reject",
+        "has_bundles": true,
+        "regime": "large",
+        "rows": 33780,
+        "tasks": 40
+      }
+    ],
+    "file": "/Users/比赛/美团黑客松决赛/AI-Hackahton_meituan_logg_在这版上面改/autosolver_agent/evolution_state/generated_strategies/gen_large_v003.py",
+    "last_case_profile": {
+      "avg_willingness": 0.299973,
+      "couriers": 80,
+      "has_bundles": true,
+      "regime": "large",
+      "rows": 33780,
+      "tasks": 40
+    },
+    "last_cost": 1151.0957585,
+    "last_decision": "reject",
+    "last_reason": "quality regression",
+    "last_seen": "2026-06-24T18:27:24",
+    "origin_case_profile": {
+      "avg_willingness": 0.299973,
+      "couriers": 80,
+      "has_bundles": true,
+      "regime": "large",
+      "rows": 33780,
+      "tasks": 40
+    },
+    "rejected": 1,
+    "rollback_action": "removed_from_active_pool",
+    "safety_passed": true,
+    "safety_reason": "passed",
+    "source": "run_agent:large_seed301:best-so-far experiment",
+    "status": "rejected",
+    "target_regime": "large"
+  },
+  "gen_large_v004": {
+    "accepted": 0,
+    "attempts": 1,
+    "case_profile_history": [
+      {
+        "accepted": false,
+        "avg_willingness": 0.299973,
+        "couriers": 80,
+        "decision": "reject",
+        "has_bundles": true,
+        "regime": "large",
+        "rows": 33780,
+        "tasks": 40
+      },
+      {
+        "accepted": false,
+        "avg_willingness": 0.299973,
+        "couriers": 80,
+        "decision": "reject",
+        "has_bundles": true,
+        "regime": "large",
+        "rows": 33780,
+        "tasks": 40
+      }
+    ],
+    "file": "/Users/比赛/美团黑客松决赛/AI-Hackahton_meituan_logg_在这版上面改/autosolver_agent/evolution_state/generated_strategies/gen_large_v004.py",
+    "last_case_profile": {
+      "avg_willingness": 0.299973,
+      "couriers": 80,
+      "has_bundles": true,
+      "regime": "large",
+      "rows": 33780,
+      "tasks": 40
+    },
+    "last_cost": 1151.0957585,
+    "last_decision": "reject",
+    "last_reason": "quality regression",
+    "last_seen": "2026-06-21T16:53:26",
+    "origin_case_profile": {
+      "avg_willingness": 0.299973,
+      "couriers": 80,
+      "has_bundles": true,
+      "regime": "large",
+      "rows": 33780,
+      "tasks": 40
+    },
+    "rejected": 1,
+    "rollback_action": "removed_from_active_pool",
+    "safety_passed": true,
+    "safety_reason": "passed",
+    "source": "run_agent:probe:best-so-far experiment",
+    "status": "rejected",
+    "target_regime": "large"
+  },
+  "gen_small_v001": {
+    "accepted": 0,
+    "attempts": 1,
+    "case_profile_history": [
+      {
+        "accepted": false,
+        "avg_willingness": 0.480989,
+        "couriers": 25,
+        "decision": "reject",
+        "has_bundles": true,
+        "regime": "small",
+        "rows": 201,
+        "tasks": 12
+      }
+    ],
+    "file": "/Users/比赛/FOR_AutoSolver_706.20_提交版/autosolver_agent/evolution_state/generated_strategies/gen_small_v001.py",
+    "last_case_profile": {
+      "avg_willingness": 0.480989,
+      "couriers": 25,
+      "has_bundles": true,
+      "regime": "small",
+      "rows": 201,
+      "tasks": 12
+    },
+    "last_cost": 730.9443411999998,
+    "last_decision": "reject",
+    "last_reason": "quality regression",
+    "last_seen": "2026-06-07T21:54:09",
+    "origin_case_profile": {
+      "avg_willingness": 0.480989,
+      "couriers": 25,
+      "has_bundles": true,
+      "regime": "small",
+      "rows": 201,
+      "tasks": 12
+    },
+    "rejected": 1,
+    "rollback_action": "removed_from_active_pool",
+    "safety_passed": true,
+    "safety_reason": "passed",
+    "source": "run_agent:small_seed100:best-so-far experiment",
+    "status": "rejected",
+    "target_regime": "small"
+  }
+}

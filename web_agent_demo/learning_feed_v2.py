@@ -21,10 +21,23 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
-EVO_DIR = ROOT / "autosolver_agent" / "evolution_state"
-MEMORY_JSONL = EVO_DIR / "evolution_memory.jsonl"
-REGISTRY_JSON = EVO_DIR / "strategy_registry.json"
+# 数据源 = 提交的 fixture(离线真实记录的"首次真跑固化"快照), 不是易变的 live evolution_state。
+# 原因: autosolver_agent/evolution_state/ 被 gitignore 且每次 agent 运行都会追加/覆盖,
+#       直接读它会让 demo 不可复现、单测随机崩。fixture 由真实记录固化、随仓库提交。
+FIXTURE_DIR = ROOT / "web_agent_demo" / "fixtures"
+MEMORY_JSONL = FIXTURE_DIR / "evolution_memory.jsonl"
+REGISTRY_JSON = FIXTURE_DIR / "strategy_registry.json"
+# live 目录仅供 regen fixture 时参考(开发用), 不进 serving 路径。
+LIVE_EVO_DIR = ROOT / "autosolver_agent" / "evolution_state"
 SNAPSHOT_PATH = ROOT / "docs" / "prebuilt" / "learning-trace.json"
+
+# best-so-far 真实阶梯: 离线跑 run_case_agent(large_seed301, budget=6s) 捕获的 best_update 事件。
+# 确定性 portfolio 求解器的 anytime 改进(非 LLM): 贪心初值 2097.66 → 683.31 → 657.10。
+BEST_SO_FAR: list[dict[str, Any]] = [
+    {"t": 0.089, "cost": 2097.6575, "label": "起步（贪心初值）"},
+    {"t": 0.281, "cost": 683.3074, "label": "组合搜索找到更优"},
+    {"t": 6.567, "cost": 657.1040, "label": "局部修复收敛到最好"},
+]
 
 # 口径基线: 权威=官方; 本地=复跑近似(带 label, 前端不得硬编码冒充官方)。
 BASELINES: dict[str, dict[str, Any]] = {
@@ -224,13 +237,14 @@ def build_payload() -> dict[str, Any]:
     strategies = [_normalize_strategy(sid, rec) for sid, rec in registry.items() if isinstance(rec, dict)]
 
     return {
-        "schema_version": 1,
-        "source": "autosolver_agent/evolution_state (真实离线进化落盘记录)",
+        "schema_version": 2,
+        "source": "web_agent_demo/fixtures (离线真实进化记录的固化快照)",
         "honest_note": "现场零 LLM · 离线真实记录回放 · 5 策略全被拒=质量门有判别力",
         "stages": STAGES,
         "events": events,
         "stats": stats,
         "strategies": strategies,
+        "best_so_far": BEST_SO_FAR,
         "baselines": BASELINES,
         "regime_cn": REGIME_CN,
     }

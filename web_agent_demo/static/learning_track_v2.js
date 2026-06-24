@@ -175,15 +175,24 @@
       <div class="shield-note" style="margin-top:8px;color:#86a0b6">没采纳 = 帮你挡掉了不靠谱的新方案，不是没用。</div>`;
   }
 
-  // ---------- 第3幕：折叠 — 学到了什么（best-so-far 占位，iter-04 接真 best_update）----------
+  // ---------- 第3幕：折叠 — 学到了什么（best-so-far 真实阶梯）----------
   function renderLadder() {
-    const b = DATA.baselines;
+    const ladder = (DATA.best_so_far && DATA.best_so_far.length) ? DATA.best_so_far : [];
+    const top = ladder.length ? ladder[0].cost : DATA.baselines.greedy_local.value;
+    const rows = ladder.map((s, i) => {
+      const drop = i === 0 ? "" : `<span class="lad-drop">↓ ${(((ladder[i - 1].cost - s.cost) / ladder[i - 1].cost) * 100).toFixed(0)}%</span>`;
+      const barW = Math.max(4, (s.cost / top) * 100);
+      return `<div class="ladder-step">
+          <span class="lad-l">${s.label}${drop}</span>
+          <span class="lad-bar"><i style="width:${barW.toFixed(0)}%"></i></span>
+          <span class="c">${fmt(s.cost, 1)}</span>
+        </div>`;
+    }).join("");
     $("ladderBody").innerHTML = `
-      <div class="ladder">
-        <div class="ladder-step"><span>一开始（贪心基线）</span><span class="c">${fmt(b.greedy_local.value, 0)}</span></div>
-        <div class="ladder-step"><span>组合搜索 + 局部修复后</span><span class="c">${fmt(b.local_realtime.value, 1)}</span></div>
-      </div>
-      <div class="shield-note" style="margin-top:8px">"目前最好方案"在同一次求解里一路被压低（真 best_update 阶梯将在 iter-04 接入）。</div>`;
+      <div class="ladder">${rows}</div>
+      <div class="shield-note" style="margin-top:8px">同一次求解里，"目前最好方案"被一路压低（真实 best_update 事件，
+        离线跑 large_seed301 捕获 · ${(((top - ladder[ladder.length - 1].cost) / top) * 100).toFixed(1)}% 降幅）。
+        这是确定性搜索的 anytime 改进，<b>不是 LLM、不改 solver</b>。</div>`;
   }
 
   // ---------- 第3幕：Q&A 速查（守诚实口径）----------
@@ -233,6 +242,7 @@
     const q = new URLSearchParams(location.search);
     const a = parseInt(q.get("act") || "1", 10);
     showAct(Number.isFinite(a) ? a - 1 : 0);
+    if (q.get("open") === "1") document.querySelectorAll("details.fold").forEach((d) => (d.open = true));
     maybeOnboard();
   }
   load();

@@ -63,6 +63,15 @@ class TestLearningFeedV2(unittest.TestCase):
         self.assertTrue(b["official_total"]["authoritative"])
         self.assertFalse(b["local_realtime"]["authoritative"], "657.104 必须标为非官方")
 
+    def test_best_so_far_is_monotonic_decreasing(self) -> None:
+        # best-so-far 真实阶梯(离线真跑捕获): 成本应只降不升, 终点≈657。
+        ladder = self.payload["best_so_far"]
+        self.assertGreaterEqual(len(ladder), 2)
+        costs = [s["cost"] for s in ladder]
+        self.assertEqual(costs, sorted(costs, reverse=True), "best-so-far 必须单调下降")
+        self.assertAlmostEqual(costs[-1], 657.104, delta=0.5)
+        self.assertAlmostEqual(costs[0], 2097.66, delta=1.0)
+
     def test_regime_not_translated_as_time_peak(self) -> None:
         # regime 真值是规模/特征桶, 严禁翻成早/午/晚高峰、雨天。
         cn_values = "".join(self.payload["regime_cn"].values())

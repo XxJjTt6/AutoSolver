@@ -1,6 +1,6 @@
 {
-  "schema_version": 1,
-  "source": "autosolver_agent/evolution_state (真实离线进化落盘记录)",
+  "schema_version": 2,
+  "source": "web_agent_demo/fixtures (离线真实进化记录的固化快照)",
   "honest_note": "现场零 LLM · 离线真实记录回放 · 5 策略全被拒=质量门有判别力",
   "stages": [
     {
@@ -606,7 +606,7 @@
         "couriers": 80,
         "rows": 33780
       },
-      "file": "/Users/logcjj/Documents/GitHub/AI-Hackahton_meituan/autosolver_agent/evolution_state/generated_strategies/gen_large_v004.py",
+      "file": "/Users/比赛/美团黑客松决赛/AI-Hackahton_meituan_logg_在这版上面改/autosolver_agent/evolution_state/generated_strategies/gen_large_v004.py",
       "beat_local": false
     },
     {
@@ -630,6 +630,23 @@
         "rows": 201
       },
       "file": "/Users/比赛/FOR_AutoSolver_706.20_提交版/autosolver_agent/evolution_state/generated_strategies/gen_small_v001.py"
+    }
+  ],
+  "best_so_far": [
+    {
+      "t": 0.089,
+      "cost": 2097.6575,
+      "label": "起步（贪心初值）"
+    },
+    {
+      "t": 0.281,
+      "cost": 683.3074,
+      "label": "组合搜索找到更优"
+    },
+    {
+      "t": 6.567,
+      "cost": 657.104,
+      "label": "局部修复收敛到最好"
     }
   ],
   "baselines": {
