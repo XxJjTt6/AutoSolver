@@ -18,6 +18,7 @@ def build_dispatch_workbench_payload(contract: DaySimulationContract) -> dict[st
     frames_by_id = {frame.id: frame for frame in contract.frames}
     trace_by_frame_id = {trace.frame_id: trace for trace in contract.reasoning_traces}
     memory_by_id = {event.id: event for event in contract.evolution_events}
+    map_aliases = _map_aliases(contract)
     frame_by_order_id = _frame_by_order_id(contract)
     baseline_assignments = _assignment_lookup(contract, lane="baseline")
     challenger_assignments = _assignment_lookup(contract, lane="challenger")
@@ -49,6 +50,7 @@ def build_dispatch_workbench_payload(contract: DaySimulationContract) -> dict[st
             orders_by_id=orders_by_id,
             couriers_by_id=couriers_by_id,
             memory_by_id=memory_by_id,
+            map_aliases=map_aliases,
         )
         for frame in contract.frames
     ]
@@ -94,9 +96,9 @@ def build_dispatch_workbench_payload(contract: DaySimulationContract) -> dict[st
             "center": _position_payload(contract.scenario.map_center),
             "bounds": [_position_payload(item) for item in contract.scenario.map_bounds],
             "anchors": _map_anchors(contract),
-            "aliases": _map_aliases(contract),
+            "aliases": map_aliases,
             "hotspots": _hotspots(contract),
-            "routes": _route_payloads(contract),
+            "routes": _route_payloads(contract, map_aliases),
             "privacy": {
                 "entity_labels": "anonymized",
                 "road_labels": "hidden_by_default",
@@ -238,6 +240,7 @@ def _decision_payload(
     orders_by_id: dict[str, Any],
     couriers_by_id: dict[str, Any],
     memory_by_id: dict[str, Any],
+    map_aliases: dict[str, dict[str, str]],
 ) -> dict[str, Any]:
     input_order_ids = list(frame.challenger.active_order_ids)
     candidate_courier_ids = sorted(
@@ -250,7 +253,9 @@ def _decision_payload(
     final_actions = [
         {
             "order_id": assignment.order_id,
+            "order_label": _display_alias(map_aliases, "orders", assignment.order_id),
             "courier_id": assignment.courier_id,
+            "courier_label": _display_alias(map_aliases, "riders", assignment.courier_id),
             "merchant_id": assignment.merchant_id,
             "total_eta_min": round(assignment.total_eta_s / 60.0, 1),
             "expected_cost_yuan": assignment.expected_cost_yuan,
@@ -261,7 +266,9 @@ def _decision_payload(
     abandoned_actions = [
         {
             "order_id": assignment.order_id,
+            "order_label": _display_alias(map_aliases, "orders", assignment.order_id),
             "courier_id": assignment.courier_id,
+            "courier_label": _display_alias(map_aliases, "riders", assignment.courier_id),
             "reason": "Baseline nearest-only assignment was rejected by risk-balanced scoring.",
         }
         for assignment in frame.baseline.assignments
@@ -819,6 +826,10 @@ def _map_alias(prefix: str, index: int, *, width: int = 2) -> str:
     return f"{prefix}-{index:0{width}d}"
 
 
+def _display_alias(aliases: dict[str, dict[str, str]], bucket: str, entity_id: str) -> str:
+    return aliases.get(bucket, {}).get(entity_id, entity_id)
+
+
 def _hotspots(contract: DaySimulationContract) -> list[dict[str, Any]]:
     zone_positions: dict[str, list[dict[str, float]]] = {}
     for merchant in contract.merchants:
@@ -843,19 +854,23 @@ def _hotspots(contract: DaySimulationContract) -> list[dict[str, Any]]:
     return hotspots
 
 
-def _route_payloads(contract: DaySimulationContract) -> list[dict[str, Any]]:
+def _route_payloads(contract: DaySimulationContract, map_aliases: dict[str, dict[str, str]]) -> list[dict[str, Any]]:
     routes = []
     for frame in contract.frames:
         for lane, algorithm_frame in (("baseline", frame.baseline), ("ours", frame.challenger)):
             for route in algorithm_frame.route_overlays:
+                order_id = route.get("order_id", "")
+                courier_id = route.get("courier_id", "")
                 routes.append(
                     {
-                        "id": f"ROUTE-{frame.id}-{lane}-{route.get('courier_id')}-{route.get('order_id')}",
+                        "id": f"ROUTE-{frame.id}-{lane}-{courier_id}-{order_id}",
                         "frame_id": frame.id,
                         "time_s": frame.sim_time_s,
                         "lane": lane,
-                        "order_id": route.get("order_id", ""),
-                        "courier_id": route.get("courier_id", ""),
+                        "order_id": order_id,
+                        "order_label": _display_alias(map_aliases, "orders", str(order_id)),
+                        "courier_id": courier_id,
+                        "courier_label": _display_alias(map_aliases, "riders", str(courier_id)),
                         "polyline": [_position_payload(point) for point in route.get("polyline", [])],
                         "eta_s": route.get("eta_s", 0),
                         "cost_yuan": route.get("cost_yuan", 0),

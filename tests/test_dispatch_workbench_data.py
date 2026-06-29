@@ -133,6 +133,26 @@ class DispatchWorkbenchDataTest(unittest.TestCase):
         self.assertNotEqual(merchant_anchor["map_label"], merchant_anchor["label"])
         self.assertNotEqual(rider_anchor["map_label"], rider_anchor["label"])
 
+    def test_dispatch_action_labels_match_map_aliases(self):
+        contract = run_full_day_comparison(
+            seed="workbench-action-labels",
+            controls=DaySimulationControls(courier_count=18, order_scale=0.38, weather="mixed", congestion_profile="weekday"),
+        )
+
+        payload = build_dispatch_workbench_payload(contract)
+        order_aliases = payload["map"]["aliases"]["orders"]
+        rider_aliases = payload["map"]["aliases"]["riders"]
+        first_decision = payload["decisions"][0]
+
+        self.assertTrue(first_decision["final_actions"])
+        for action in first_decision["final_actions"] + first_decision["abandoned_actions"]:
+            self.assertEqual(action["order_label"], order_aliases[action["order_id"]])
+            self.assertEqual(action["courier_label"], rider_aliases[action["courier_id"]])
+
+        first_route = payload["map"]["routes"][0]
+        self.assertEqual(first_route["order_label"], order_aliases[first_route["order_id"]])
+        self.assertEqual(first_route["courier_label"], rider_aliases[first_route["courier_id"]])
+
     def test_workbench_payload_is_deterministic_and_json_serializable(self):
         controls = DaySimulationControls(courier_count=18, order_scale=0.38, weather="mixed", congestion_profile="weekday")
         first = build_dispatch_workbench_payload(run_full_day_comparison(seed="stable-workbench", controls=controls))

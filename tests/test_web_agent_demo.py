@@ -511,6 +511,39 @@ class WebAgentDemoTest(unittest.TestCase):
         self.assertTrue(workbench["inspection"]["full_day_preloaded"])
         self.assertTrue(workbench["inspection"]["deterministic"])
 
+    def test_dispatch_action_text_uses_map_labels(self):
+        from web_agent_demo.server import render_index
+
+        html = render_index()
+
+        self.assertIn("function actionDisplayLabel(kind, item)", html)
+        self.assertIn("function actionPairLabel(item)", html)
+        self.assertIn("function actionSentenceLabel(item)", html)
+        self.assertIn("return `${actionPairLabel(item)}${eta}`;", html)
+        self.assertIn("return `${actionSentenceLabel(item)}${eta}`;", html)
+        self.assertNotIn("`${item.order_id}->${item.courier_id}${eta}`", html)
+        self.assertNotIn("`${item.order_id} 派给 ${item.courier_id}${eta}`", html)
+
+    def test_live_map_keeps_active_order_label_visible(self):
+        from web_agent_demo.server import render_index
+
+        html = render_index()
+
+        self.assertIn("function focusedMapOrderIds(routes = [], riders = [])", html)
+        self.assertIn("focusOrderIds.has(item.id)", html)
+        self.assertIn('renderMapDots("order", orders.slice(0, 22), "dropoff", focusOrderIds)', html)
+        self.assertIn('renderLeafletMarkers(layerGroup, "order", orders.slice(0, 22), "dropoff", focusedMapOrderIds(routes, riders))', html)
+
+    def test_live_map_limits_order_points_to_current_route_frame(self):
+        from web_agent_demo.server import render_index
+
+        html = render_index()
+
+        self.assertIn('const currentRouteOrderIds = new Set(routeRowsForFrame(frame, "ours")', html)
+        self.assertIn('if (currentRouteOrderIds.size || activeIds.size) {', html)
+        self.assertIn('for (const orderId of currentRouteOrderIds) activeIds.add(orderId);', html)
+        self.assertIn('const recent = workbench.map.anchors.orders.filter', html)
+
     def test_day_simulation_api_payloads_support_replay_controls(self):
         from web_agent_demo.server import (
             _day_simulation_frame_payload,

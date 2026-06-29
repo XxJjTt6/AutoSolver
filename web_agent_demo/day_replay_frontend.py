@@ -762,8 +762,20 @@ def render_day_replay_index() -> str:
       width: 100%;
       height: 8px;
       overflow: hidden;
+      position: relative;
       border-radius: 999px;
+      border: 0;
+      padding: 0;
       background: #dbe4ed;
+      cursor: pointer;
+      box-shadow: inset 0 1px 2px rgba(15,23,42,.08);
+    }
+    .inference-progress:hover {
+      background: #cfdbe6;
+    }
+    .inference-progress:focus-visible {
+      outline: 0;
+      box-shadow: var(--focus-ring), inset 0 1px 2px rgba(15,23,42,.08);
     }
     .inference-progress span {
       display: block;
@@ -772,6 +784,7 @@ def render_day_replay_index() -> str:
       border-radius: inherit;
       background: linear-gradient(90deg, var(--accent), #22c55e);
       transition: width .28s ease;
+      pointer-events: none;
     }
     .primary-button {
       border: 0;
@@ -2369,8 +2382,12 @@ def render_day_replay_index() -> str:
       return Math.max(min, Math.min(max, value));
     }
 
+    function timelineSpanS() {
+      return Math.max(1, workbench.timeline.end_s - workbench.timeline.start_s);
+    }
+
     function inferenceProgressPct() {
-      const span = Math.max(1, workbench.timeline.end_s - workbench.timeline.start_s);
+      const span = timelineSpanS();
       return Math.round(clamp((inferenceState.currentTimeS - workbench.timeline.start_s) / span, 0, 1) * 1000) / 10;
     }
 
@@ -2565,6 +2582,11 @@ def render_day_replay_index() -> str:
     function ordersForMap(frame) {
       const anchorsById = Object.fromEntries(workbench.map.anchors.orders.map((order) => [order.id, order]));
       const activeIds = new Set([...(frame.challenger.active_order_ids || []), ...(frame.highlighted_order_ids || [])]);
+      const currentRouteOrderIds = new Set(routeRowsForFrame(frame, "ours").map((route) => route.order_id).filter(Boolean));
+      for (const orderId of currentRouteOrderIds) activeIds.add(orderId);
+      if (currentRouteOrderIds.size || activeIds.size) {
+        return [...activeIds].map((id) => anchorsById[id]).filter(Boolean).sort((a, b) => a.created_at_s - b.created_at_s).slice(-32);
+      }
       const recent = workbench.map.anchors.orders.filter((order) => order.created_at_s <= inferenceState.currentTimeS && order.created_at_s >= inferenceState.currentTimeS - 1800);
       for (const order of recent) activeIds.add(order.id);
       return [...activeIds].map((id) => anchorsById[id]).filter(Boolean).sort((a, b) => a.created_at_s - b.created_at_s).slice(-32);
@@ -2661,6 +2683,7 @@ def render_day_replay_index() -> str:
       const pauseButton = document.getElementById("pause-inference");
       const speedSelect = document.getElementById("playback-speed");
       const modeSelect = document.getElementById("inference-mode");
+      const progressControl = document.getElementById("inference-progress-control");
       if (!startButton || !pauseButton || !speedSelect || !modeSelect) return;
       startButton.addEventListener("click", startInference);
       pauseButton.addEventListener("click", toggleInferencePause);
@@ -2668,6 +2691,10 @@ def render_day_replay_index() -> str:
       modeSelect.value = inferenceState.mode;
       speedSelect.addEventListener("change", () => setInferenceSpeed(Number(speedSelect.value)));
       modeSelect.addEventListener("change", () => setInferenceMode(modeSelect.value));
+      if (progressControl) {
+        progressControl.addEventListener("click", seekInferenceFromProgressEvent);
+        progressControl.addEventListener("keydown", handleProgressKeyboardSeek);
+      }
     }
 
     function startInference() {
@@ -2706,6 +2733,39 @@ def render_day_replay_index() -> str:
     function setInferenceMode(mode) {
       inferenceState.mode = Object.prototype.hasOwnProperty.call(inferenceModeLabels, mode) ? mode : "current";
       renderLiveRuntimeState();
+    }
+
+    function seekInferenceFromProgressEvent(event) {
+      const rect = event.currentTarget.getBoundingClientRect();
+      if (!rect.width) return;
+      const ratio = clamp((event.clientX - rect.left) / rect.width, 0, 1);
+      seekInferenceTime(workbench.timeline.start_s + ratio * timelineSpanS());
+    }
+
+    function handleProgressKeyboardSeek(event) {
+      const stepS = event.shiftKey ? 1800 : 600;
+      let nextTimeS = null;
+      if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
+        nextTimeS = inferenceState.currentTimeS - stepS;
+      } else if (event.key === "ArrowRight" || event.key === "ArrowUp") {
+        nextTimeS = inferenceState.currentTimeS + stepS;
+      } else if (event.key === "Home") {
+        nextTimeS = workbench.timeline.start_s;
+      } else if (event.key === "End") {
+        nextTimeS = workbench.timeline.end_s;
+      }
+      if (nextTimeS === null) return;
+      event.preventDefault();
+      seekInferenceTime(nextTimeS);
+    }
+
+    function seekInferenceTime(nextTimeS) {
+      const snappedTimeS = Math.round(Number(nextTimeS || 0) / 60) * 60;
+      inferenceState.started = true;
+      inferenceState.running = false;
+      inferenceState.lastTickAt = Date.now();
+      clearInferenceTimer();
+      setInferenceTime(snappedTimeS);
     }
 
     function clearInferenceTimer() {
@@ -2765,8 +2825,15 @@ def render_day_replay_index() -> str:
       setText("event-flow-caption", `${events.length} 个事件已自动释放`);
       setText("cumulative-metrics-caption", `${currentScore.time_label} 累计优势`);
       setText("round-summary-time", currentDecision.trigger_time_label);
+      const progressPct = inferenceProgressPct();
+      const progressControl = document.getElementById("inference-progress-control");
+      if (progressControl) {
+        progressControl.setAttribute("aria-valuenow", String(progressPct));
+        progressControl.setAttribute("aria-valuetext", `${clock(inferenceState.currentTimeS)} / ${fmtNumber(progressPct, 1)}%`);
+        progressControl.title = `点击跳转到对应推演时间；当前 ${clock(inferenceState.currentTimeS)}，${fmtNumber(progressPct, 1)}%`;
+      }
       const progressBar = document.getElementById("inference-progress-bar");
-      if (progressBar) progressBar.style.setProperty("--progress", `${inferenceProgressPct()}%`);
+      if (progressBar) progressBar.style.setProperty("--progress", `${progressPct}%`);
       const mapStage = document.getElementById("live-map-stage");
       if (mapStage) {
         const frame = frameForTime(inferenceState.currentTimeS);
@@ -2967,7 +3034,7 @@ def render_day_replay_index() -> str:
                 <div class="runtime-cell"><span>模式</span><b id="inference-mode-label">${escapeHtml(inferenceModeLabels[inferenceState.mode])}</b></div>
                 <div class="runtime-cell"><span>释放事件</span><b id="inference-event-count">${releasedEvents(inferenceState.currentTimeS).length}</b></div>
               </div>
-              <div class="inference-progress" aria-label="full day inference progress"><span id="inference-progress-bar" style="--progress:${inferenceProgressPct()}%"></span></div>
+              <div id="inference-progress-control" class="inference-progress" role="slider" tabindex="0" aria-label="点击跳转到对应推演时间" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${inferenceProgressPct()}" aria-valuetext="${escapeHtml(`${clock(inferenceState.currentTimeS)} / ${fmtNumber(inferenceProgressPct(), 1)}%`)}" title="点击进度条跳转到对应推演时间"><span id="inference-progress-bar" style="--progress:${inferenceProgressPct()}%"></span></div>
               </div>
               <div class="card map-panel">
               <div class="card-head"><h3>实时地图层</h3><span id="map-runtime-hint">商家 / 订单 / 骑手 / 路线 / 热点</span></div>
@@ -3189,6 +3256,7 @@ def render_day_replay_index() -> str:
     }
 
     function renderLiveMapLayer(frame, routes = mapRouteRows(frame), riders = riderPositionsForFrame(frame), orders = ordersForMap(frame)) {
+      const focusOrderIds = focusedMapOrderIds(routes, riders);
       return `
         <div id="map-action-status" class="map-action-status" data-map-action="active">${renderMapActionStatus(frame, routes, riders, orders)}</div>
         <div class="map-mode-chip">${escapeHtml(inferenceModeLabels[inferenceState.mode])} / ${escapeHtml(frame.id)}</div>
@@ -3198,7 +3266,7 @@ def render_day_replay_index() -> str:
           ${renderHotspots()}
           ${renderMapDots("merchant", workbench.map.anchors.merchants.slice(0, 16), "position")}
           ${renderMapDots("rider", riders.slice(0, 14), "position")}
-          ${renderMapDots("order", orders.slice(0, 22), "dropoff")}
+          ${renderMapDots("order", orders.slice(0, 22), "dropoff", focusOrderIds)}
         </div>
         ${renderMapLegend()}
       `;
@@ -3211,11 +3279,11 @@ def render_day_replay_index() -> str:
         <svg class="map-route" data-route-count="${routes.length}" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
           ${routes.map((route) => {
             const points = route.polyline.map((point) => `${point.screen_x},${point.screen_y}`).join(" ");
-            return `<polyline class="route-line" data-lane="${escapeHtml(route.renderLane || route.lane)}" data-order-ref="${escapeHtml(mapEntityLabel("order", {id: route.order_id}))}" data-rider-ref="${escapeHtml(mapEntityLabel("rider", {id: route.courier_id}))}" points="${escapeHtml(points)}"></polyline>`;
+            return `<polyline class="route-line" data-lane="${escapeHtml(route.renderLane || route.lane)}" data-order-ref="${escapeHtml(actionDisplayLabel("order", route))}" data-rider-ref="${escapeHtml(actionDisplayLabel("rider", route))}" points="${escapeHtml(points)}"></polyline>`;
           }).join("")}
           ${progressLines.map((route) => {
             const points = route.progressPolyline.map((point) => `${point.screen_x},${point.screen_y}`).join(" ");
-            return `<polyline class="route-line" data-lane="active-progress" data-order-ref="${escapeHtml(mapEntityLabel("order", {id: route.order_id}))}" data-rider-ref="${escapeHtml(mapEntityLabel("rider", {id: route.courier_id}))}" points="${escapeHtml(points)}"></polyline>`;
+            return `<polyline class="route-line" data-lane="active-progress" data-order-ref="${escapeHtml(actionDisplayLabel("order", route))}" data-rider-ref="${escapeHtml(actionDisplayLabel("rider", route))}" points="${escapeHtml(points)}"></polyline>`;
           }).join("")}
         </svg>
       `;
@@ -3255,13 +3323,14 @@ def render_day_replay_index() -> str:
       }
       const moving = activeMapRider(riders);
       if (moving) {
-        const orderLabel = moving.order_id ? mapEntityLabel("order", {id: moving.order_id}) : "当前订单";
-        const riderLabel = mapEntityLabel("rider", moving);
+        const movingAction = { order_id: moving.order_id, courier_id: moving.id };
+        const orderLabel = moving.order_id ? actionDisplayLabel("order", movingAction) : "当前订单";
+        const riderLabel = actionDisplayLabel("rider", movingAction);
         return `<strong>${escapeHtml(riderLabel)} 正在执行 ${escapeHtml(orderLabel)}</strong><span>路线进度 ${fmtNumber((moving.progress || 0) * 100, 0)}%，地图只突出我方动作和必要差异。</span>`;
       }
       const route = routes.find((item) => (item.renderLane || item.lane) === "ours") || routes[0];
       if (route) {
-        return `<strong>本轮路线已接管</strong><span>${escapeHtml(mapEntityLabel("rider", {id: route.courier_id}))} -> ${escapeHtml(mapEntityLabel("order", {id: route.order_id}))}，等待下一次路线重算。</span>`;
+        return `<strong>本轮路线已接管</strong><span>${escapeHtml(actionPairLabel(route))}，等待下一次路线重算。</span>`;
       }
       return `<strong>等待首轮路线</strong><span>已释放 ${orders.length} 个地图订单点，系统正在等待可评分的派单窗口。</span>`;
     }
@@ -3274,13 +3343,13 @@ def render_day_replay_index() -> str:
       }).join("");
     }
 
-    function renderMapDots(kind, items, positionKey) {
+    function renderMapDots(kind, items, positionKey, focusOrderIds = new Set()) {
       return items.map((item, index) => {
         const pos = item[positionKey];
         const release = kind === "order" && item.created_at_s >= inferenceState.currentTimeS - 900 ? "new" : "stable";
         const motion = kind === "rider" ? (item.motion || "snapshot") : "";
         const label = mapEntityLabel(kind, item, index);
-        const showLabel = kind === "rider" || (kind === "order" && index < 4);
+        const showLabel = shouldShowMapLabel(kind, item, index, label, focusOrderIds);
         return `<span class="map-dot" data-kind="${escapeHtml(kind)}" data-map-ref="${escapeHtml(label)}" data-map-label="${escapeHtml(label)}" data-show-label="${showLabel}" data-release="${escapeHtml(release)}" data-motion="${escapeHtml(motion)}" data-phase="${escapeHtml(item.phase || "")}" title="${escapeHtml(mapEntityTitle(kind, label, item))}" aria-label="${escapeHtml(mapEntityTitle(kind, label, item))}" style="--x:${pos.screen_x};--y:${pos.screen_y}"></span>`;
       }).join("");
     }
@@ -3315,6 +3384,39 @@ def render_day_replay_index() -> str:
       const prefix = kind === "merchant" ? "M" : kind === "rider" ? "R" : kind === "order" ? "O" : "H";
       const width = kind === "order" ? 3 : 2;
       return `${prefix}-${String(index + 1).padStart(width, "0")}`;
+    }
+
+    function actionDisplayLabel(kind, item) {
+      const labelKey = kind === "order" ? "order_label" : kind === "rider" ? "courier_label" : "";
+      if (labelKey && item?.[labelKey]) return item[labelKey];
+      const id = kind === "order" ? item?.order_id : kind === "rider" ? item?.courier_id : item?.id;
+      return mapEntityLabel(kind, { id: id || item?.id || "" });
+    }
+
+    function actionPairLabel(item) {
+      return `${actionDisplayLabel("order", item)} -> ${actionDisplayLabel("rider", item)}`;
+    }
+
+    function actionSentenceLabel(item) {
+      return `${actionDisplayLabel("order", item)} 派给 ${actionDisplayLabel("rider", item)}`;
+    }
+
+    function focusedMapOrderIds(routes = [], riders = []) {
+      const ids = new Set();
+      for (const route of routes) {
+        const lane = route.renderLane || route.lane;
+        if (route.order_id && !["baseline", "previous"].includes(lane)) ids.add(route.order_id);
+      }
+      for (const rider of riders) {
+        if (rider.motion === "moving" && rider.order_id) ids.add(rider.order_id);
+      }
+      return ids;
+    }
+
+    function shouldShowMapLabel(kind, item, index, label, focusOrderIds = new Set()) {
+      if (kind === "rider") return true;
+      if (kind !== "order") return false;
+      return index < 4 || focusOrderIds.has(item.id);
     }
 
     function mapEntityTitle(kind, label, item = {}) {
@@ -3416,7 +3518,7 @@ def render_day_replay_index() -> str:
       renderLeafletRoutes(layerGroup, routes, riders);
       renderLeafletMarkers(layerGroup, "merchant", workbench.map.anchors.merchants.slice(0, 16), "position");
       renderLeafletMarkers(layerGroup, "rider", riders.slice(0, 14), "position");
-      renderLeafletMarkers(layerGroup, "order", orders.slice(0, 22), "dropoff");
+      renderLeafletMarkers(layerGroup, "order", orders.slice(0, 22), "dropoff", focusedMapOrderIds(routes, riders));
     }
 
     function mapBounds() {
@@ -3497,10 +3599,10 @@ def render_day_replay_index() -> str:
         baseline: "基线差异",
         difference: "叠加差异"
       }[route.renderLane || route.lane] || "路线";
-      return `${laneLabel} / ${mapEntityLabel("rider", {id: route.courier_id})} -> ${mapEntityLabel("order", {id: route.order_id})}`;
+      return `${laneLabel} / ${actionPairLabel(route)}`;
     }
 
-    function renderLeafletMarkers(map, kind, items, positionKey) {
+    function renderLeafletMarkers(map, kind, items, positionKey, focusOrderIds = new Set()) {
       items.forEach((item, index) => {
         const pos = item[positionKey];
         if (!pos || !Number.isFinite(Number(pos.lat)) || !Number.isFinite(Number(pos.lng))) return;
@@ -3508,18 +3610,18 @@ def render_day_replay_index() -> str:
         const release = kind === "order" && item.created_at_s >= inferenceState.currentTimeS - 900 ? "new" : "stable";
         const motion = kind === "rider" ? (item.motion || "snapshot") : "";
         window.L.marker(mapPoint(pos), {
-          icon: renderLeafletMarker(kind, label, release, motion, index),
+          icon: renderLeafletMarker(kind, label, release, motion, index, shouldShowMapLabel(kind, item, index, label, focusOrderIds)),
           keyboard: false,
           zIndexOffset: kind === "rider" ? 500 : kind === "order" ? 300 : 100
         }).bindTooltip(escapeHtml(mapEntityTitle(kind, label, item)), { direction: "top", opacity: .92, sticky: true }).addTo(map);
       });
     }
 
-    function renderLeafletMarker(kind, label, release, motion, index = 0) {
-      const showLabel = kind === "rider" || (kind === "order" && index < 4);
+    function renderLeafletMarker(kind, label, release, motion, index = 0, showLabel = null) {
+      const visible = showLabel ?? (kind === "rider" || (kind === "order" && index < 4));
       return window.L.divIcon({
         className: "leaflet-map-pin",
-        html: `<span class="leaflet-map-pin-body" data-kind="${escapeHtml(kind)}" data-release="${escapeHtml(release)}" data-motion="${escapeHtml(motion)}"></span>${showLabel ? `<span class="leaflet-map-pin-label">${escapeHtml(label)}</span>` : ""}`,
+        html: `<span class="leaflet-map-pin-body" data-kind="${escapeHtml(kind)}" data-release="${escapeHtml(release)}" data-motion="${escapeHtml(motion)}"></span>${visible ? `<span class="leaflet-map-pin-label">${escapeHtml(label)}</span>` : ""}`,
         iconAnchor: [8, 8],
         iconSize: [16, 16]
       });
@@ -3564,7 +3666,7 @@ def render_day_replay_index() -> str:
       if (!actions || !actions.length) return "暂无动作";
       const preview = actions.slice(0, limit).map((item) => {
         const eta = item.total_eta_min === undefined ? "" : ` / ${fmtNumber(item.total_eta_min, 1)}分钟`;
-        return `${item.order_id}->${item.courier_id}${eta}`;
+        return `${actionPairLabel(item)}${eta}`;
       }).join(", ");
       return actions.length > limit ? `${preview} +${actions.length - limit} 项` : preview;
     }
@@ -3693,7 +3795,7 @@ def render_day_replay_index() -> str:
           : displayActionReason(item.reason);
         return `
           <div class="action-card" data-action-kind="${escapeHtml(kind)}">
-            <strong>${escapeHtml(item.order_id)} -> ${escapeHtml(item.courier_id)}</strong>
+            <strong>${escapeHtml(actionPairLabel(item))}</strong>
             <p>${escapeHtml(detail)}</p>
           </div>
         `;
@@ -3706,6 +3808,14 @@ def render_day_replay_index() -> str:
 
     function decisionCandidateRiderIds(decision) {
       return (decision.candidate_riders || []).length ? decision.candidate_riders.map((item) => item.id) : (decision.candidate_rider_ids || []);
+    }
+
+    function decisionInputOrderLabels(decision) {
+      return decisionInputOrderIds(decision).map((orderId) => actionDisplayLabel("order", { order_id: orderId }));
+    }
+
+    function decisionCandidateRiderLabels(decision) {
+      return decisionCandidateRiderIds(decision).map((courierId) => actionDisplayLabel("rider", { courier_id: courierId }));
     }
 
     function topDecisionScore(decision) {
@@ -3729,7 +3839,7 @@ def render_day_replay_index() -> str:
       if (!actions || !actions.length) return "暂无动作";
       const text = actions.slice(0, limit).map((item) => {
         const eta = item.total_eta_min === undefined ? "" : `，预计 ${fmtNumber(item.total_eta_min, 1)} 分钟`;
-        return `${item.order_id} 派给 ${item.courier_id}${eta}`;
+        return `${actionSentenceLabel(item)}${eta}`;
       }).join("；");
       return actions.length > limit ? `${text}；另有 ${actions.length - limit} 个动作` : text;
     }
@@ -3774,12 +3884,14 @@ def render_day_replay_index() -> str:
     function renderDecisionStepFlow(decision) {
       const inputOrderIds = decisionInputOrderIds(decision);
       const candidateRiderIds = decisionCandidateRiderIds(decision);
+      const inputOrderLabels = decisionInputOrderLabels(decision);
+      const candidateRiderLabels = decisionCandidateRiderLabels(decision);
       const bestScore = topDecisionScore(decision);
       return `
         <section id="decision-step-flow" class="decision-step-flow" data-reasoning-pattern="plain-six-step">
           ${renderDecisionStep("decision-trigger-time", 1, "为什么触发这一轮", "done", `${escapeHtml(decision.trigger_time_label)}，${escapeHtml(displayTriggerReason(decision.trigger_reason))}`, [readableDecisionLabel(decision.id), displayDemandPhase(decision.context.demand_phase)])}
-          ${renderDecisionStep("decision-input-orders", 2, "看哪些订单", "done", `本轮把 ${inputOrderIds.length} 个已经进入推理窗口的订单放进同一批判断，不让单个订单孤立决策。`, inputOrderIds.slice(0, 8))}
-          ${renderDecisionStep("decision-candidate-riders", 3, "候选骑手怎么选", "done", `系统只从在线、同区域或可及时赶到的骑手里选候选，共 ${candidateRiderIds.length} 名。`, candidateRiderIds.slice(0, 8))}
+          ${renderDecisionStep("decision-input-orders", 2, "看哪些订单", "done", `本轮把 ${inputOrderIds.length} 个已经进入推理窗口的订单放进同一批判断，不让单个订单孤立决策。`, inputOrderLabels.slice(0, 8))}
+          ${renderDecisionStep("decision-candidate-riders", 3, "候选骑手怎么选", "done", `系统只从在线、同区域或可及时赶到的骑手里选候选，共 ${candidateRiderIds.length} 名。`, candidateRiderLabels.slice(0, 8))}
           ${renderDecisionStep("decision-filtering-process", 4, "先过滤不可行方案", "done", `先按时间窗口、区域班次、拥堵和承诺送达时间过滤，${escapeHtml(decisionFilterSentence(decision))}。`, (decision.filtering_process || []).map((stage) => `${displayStage(stage.stage)} ${stage.remaining}`))}
           ${renderDecisionStep("decision-scoring-process", 5, "再给可行方案打分", "done", `${escapeHtml(decisionScoreSentence(decision))}`, bestScore ? [candidateLabel(bestScore.algorithm_id), `评分 ${fmtNumber(bestScore.score, 3)}`, `风险 ${fmtNumber(bestScore.risk_score, 3)}`] : ["等待评分"])}
           ${renderDecisionStep("decision-final-actions", 6, "输出派单并回写记忆", "final", `最终输出 ${decision.final_actions.length} 个派单动作，放弃 ${decision.abandoned_actions.length} 个基线动作；本轮节省 ${fmtNumber(decision.round_result.time_saved_min, 1)} 分钟，回写 ${decision.result_writeback.writeback_count} 条有效记忆。`, [`成本优势 ${fmtNumber(decision.round_result.cost_saved_yuan, 1)} 元`, `风险变化 ${fmtSigned(decision.round_result.timeout_risk_delta, 3)}`])}
@@ -3849,11 +3961,13 @@ def render_day_replay_index() -> str:
     function renderDecisionEvidence(decision) {
       const inputOrderIds = decisionInputOrderIds(decision);
       const candidateRiderIds = decisionCandidateRiderIds(decision);
+      const inputOrderLabels = decisionInputOrderLabels(decision);
+      const candidateRiderLabels = decisionCandidateRiderLabels(decision);
       return `
         <section id="decision-proof-panel" class="decision-proof-grid" data-reasoning-surface="required-fields">
           ${renderDecisionStage("decision-trigger-reason", "触发时间与原因", decision.trigger_time_label, `<p>${escapeHtml(displayTriggerReason(decision.trigger_reason))}</p>`)}
-          ${renderDecisionStage("decision-input-orders", "输入订单集合", `${inputOrderIds.length} 单`, renderChipList(inputOrderIds.slice(0, 20), "当前轮无释放订单"))}
-          ${renderDecisionStage("decision-candidate-riders", "候选骑手集合", `${candidateRiderIds.length} 名骑手`, renderChipList(candidateRiderIds.slice(0, 20), "暂无候选骑手"))}
+          ${renderDecisionStage("decision-input-orders", "输入订单集合", `${inputOrderIds.length} 单`, renderChipList(inputOrderLabels.slice(0, 20), "当前轮无释放订单"))}
+          ${renderDecisionStage("decision-candidate-riders", "候选骑手集合", `${candidateRiderIds.length} 名骑手`, renderChipList(candidateRiderLabels.slice(0, 20), "暂无候选骑手"))}
           ${renderDecisionStage("decision-filtering-process", "过滤过程", `${(decision.filtering_process || []).length} 步`, `<p>${escapeHtml(decisionFilterSentence(decision))}</p>`)}
           ${renderDecisionStage("decision-scoring-process", "评分过程", `${(decision.scoring_process || []).length} 个方案`, `<p>${escapeHtml(decisionScoreSentence(decision))}</p>`)}
           ${renderDecisionStage("decision-abandoned-actions", "被放弃动作", `${decision.abandoned_actions.length} 个备选`, renderDecisionActions(decision.abandoned_actions.slice(0, 4), "abandoned"))}
@@ -3875,6 +3989,8 @@ def render_day_replay_index() -> str:
     function renderDecisionContext(decision) {
       const inputOrderIds = decisionInputOrderIds(decision);
       const candidateRiderIds = decisionCandidateRiderIds(decision);
+      const inputOrderLabels = decisionInputOrderLabels(decision);
+      const candidateRiderLabels = decisionCandidateRiderLabels(decision);
       return `
         <div class="list-item" id="decision-context-input">
           <strong>这轮发生在什么场景</strong>
@@ -3884,12 +4000,12 @@ def render_day_replay_index() -> str:
         <div class="list-item" id="decision-context-orders">
           <strong>输入订单</strong>
           <p>${inputOrderIds.length} 单进入本轮推理。</p>
-          ${renderChipList(inputOrderIds.slice(0, 8), "暂无订单")}
+          ${renderChipList(inputOrderLabels.slice(0, 8), "暂无订单")}
         </div>
         <div class="list-item" id="decision-context-riders">
           <strong>候选骑手</strong>
           <p>${candidateRiderIds.length} 名骑手进入候选集合。</p>
-          ${renderChipList(candidateRiderIds.slice(0, 8), "暂无骑手")}
+          ${renderChipList(candidateRiderLabels.slice(0, 8), "暂无骑手")}
         </div>
         <div class="list-item" id="decision-output-result">
           <strong>输出结果</strong>
@@ -4469,11 +4585,32 @@ def render_day_replay_index() -> str:
       `;
     }
 
+    function isShortcutInputTarget(target) {
+      return Boolean(target?.closest?.("input, textarea, select, a, [contenteditable='true']"));
+    }
+
+    function isNativePauseButtonTarget(target) {
+      return target?.closest?.("button")?.id === "pause-inference";
+    }
+
+    function handleGlobalPlaybackShortcut(event) {
+      if (event.repeat || (event.code !== "Space" && event.key !== " ")) return;
+      if (isShortcutInputTarget(event.target)) return;
+      if (isNativePauseButtonTarget(event.target)) return;
+      if (document.body.dataset.route !== "live") return;
+      if (!document.querySelector("[data-page='live']")) return;
+      const inferenceFinished = inferenceState.started && inferenceState.currentTimeS >= workbench.timeline.end_s;
+      if (inferenceFinished && !inferenceState.running) return;
+      event.preventDefault();
+      toggleInferencePause();
+    }
+
     function bootstrapDispatchWorkbench() {
       renderNav();
       renderTopbarStats();
       setRoute(routeFromHash());
       window.addEventListener("hashchange", () => setRoute(routeFromHash()));
+      window.addEventListener("keydown", handleGlobalPlaybackShortcut);
     }
 
     document.addEventListener("DOMContentLoaded", bootstrapDispatchWorkbench);
@@ -4527,6 +4664,7 @@ def render_day_replay_index() -> str:
       setInferenceSpeed,
       setInferenceMode,
       setInferenceTime,
+      seekInferenceTime,
       advanceInferenceTick,
       scoreForTime,
       decisionForTime,
