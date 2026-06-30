@@ -1332,6 +1332,7 @@ def _simulation_trace_from_routes(
     tracks: list[dict[str, Any]] = []
     events: list[dict[str, Any]] = []
     speed_samples: list[float] = []
+    tracked_couriers: set[str] = set()
 
     for route in route_overlays[:10]:
         assignment = assignment_by_order.get(str(route.get("order_id", "")))
@@ -1339,6 +1340,10 @@ def _simulation_trace_from_routes(
         points = tuple(point for point in points if point is not None)
         if assignment is None or len(points) < 2:
             continue
+        courier_id = str(route.get("courier_id") or assignment.courier_id)
+        if courier_id in tracked_couriers:
+            continue
+        tracked_couriers.add(courier_id)
         duration_s = max(1.0, min(float(horizon_s), float(assignment.total_eta_s or horizon_s)))
         total_distance_m = _polyline_distance_m(points)
         if duration_s > 0:
@@ -1366,7 +1371,6 @@ def _simulation_trace_from_routes(
                     "speed_mps": round(total_distance_m / duration_s, 4),
                 }
             )
-        courier_id = str(route.get("courier_id") or assignment.courier_id)
         order_id = str(route.get("order_id") or assignment.order_id)
         tracks.append(
             {

@@ -544,6 +544,21 @@ class WebAgentDemoTest(unittest.TestCase):
         self.assertIn('for (const orderId of currentRouteOrderIds) activeIds.add(orderId);', html)
         self.assertIn('const recent = workbench.map.anchors.orders.filter', html)
 
+    def test_live_map_deduplicates_rider_tracks_and_labels_assignments(self):
+        from web_agent_demo.server import render_index
+
+        html = render_index()
+
+        self.assertIn("function groupedMovingRiderPositions(frame)", html)
+        self.assertIn("existing.task_order_ids", html)
+        self.assertIn("function routeAssignmentLabel(route)", html)
+        self.assertIn("function routeLabelPoint(route)", html)
+        self.assertIn("route-assignment-label", html)
+        self.assertIn("leaflet-route-assignment", html)
+        self.assertIn("本轮规划路线", html)
+        self.assertIn("当前执行进度", html)
+        self.assertIn('["active-progress", "当前执行进度"]', html)
+
     def test_day_simulation_api_payloads_support_replay_controls(self):
         from web_agent_demo.server import (
             _day_simulation_frame_payload,

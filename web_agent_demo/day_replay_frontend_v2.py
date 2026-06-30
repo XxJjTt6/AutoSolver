@@ -981,10 +981,6 @@ def render_day_replay_index() -> str:
     .legend-swatch[data-lane="baseline"] { background: var(--red); opacity: .48; }
     .legend-swatch[data-lane="difference"] { background: var(--amber); }
     .legend-swatch[data-lane="previous"] { background: #64748b; opacity: .36; }
-    .legend-swatch[data-lane="active-progress"] {
-      background: repeating-linear-gradient(90deg, #059669 0 5px, transparent 5px 9px);
-      height: 4px;
-    }
     .map-route {
       position: absolute;
       inset: 0;
@@ -1029,15 +1025,6 @@ def render_day_replay_index() -> str:
       opacity: .95;
       stroke-dasharray: 5 6;
       animation: route-progress-flow 1.1s linear infinite;
-    }
-    .route-assignment-label {
-      fill: #12352f;
-      stroke: rgba(255,255,255,.94);
-      stroke-width: .62;
-      paint-order: stroke;
-      font: 800 2.15px var(--mono);
-      letter-spacing: 0;
-      pointer-events: none;
     }
     .map-dot {
       --size: 12px;
@@ -1158,25 +1145,6 @@ def render_day_replay_index() -> str:
       font: 800 9px var(--mono);
       white-space: nowrap;
     }
-    .leaflet-route-assignment {
-      border: 0;
-      background: transparent;
-      pointer-events: none;
-    }
-    .leaflet-route-assignment span {
-      display: inline-flex;
-      align-items: center;
-      max-width: 116px;
-      min-height: 20px;
-      padding: 3px 7px;
-      border: 1px solid rgba(15,118,110,.20);
-      border-radius: 999px;
-      color: #12352f;
-      background: rgba(255,255,255,.90);
-      box-shadow: 0 8px 18px rgba(15,23,42,.12);
-      font: 850 10px var(--mono);
-      white-space: nowrap;
-    }
     .score-stack { display: grid; gap: 10px; }
     .live-side-rail,
     .decision-grid > aside,
@@ -1233,7 +1201,7 @@ def render_day_replay_index() -> str:
       gap: 10px;
     }
     .live-advantage-hero .delta-grid {
-      grid-template-columns: repeat(5, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
     .live-advantage-hero .delta-grid .score-card {
       min-height: 0;
@@ -1244,7 +1212,7 @@ def render_day_replay_index() -> str:
       gap: 9px;
     }
     .live-run-panel .metric-strip {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
     .metric-chip {
       padding: 11px;
@@ -1980,6 +1948,202 @@ def render_day_replay_index() -> str:
         transition-duration: .001ms !important;
       }
     }
+
+    /* ===== v2 自解释改造新增样式 ===== */
+    /* 阶段状态徽章：随 compare_due 切换高峰/平峰，让「数字不动」从「像卡死」变成「明确待机」 */
+    .advantage-kicker-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .phase-status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line-strong);
+      background: rgba(255,255,255,.78);
+      color: var(--muted);
+      font: 800 11px var(--mono);
+      letter-spacing: .02em;
+    }
+    .phase-status-badge::before {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--muted);
+      content: "";
+    }
+    .phase-status-badge[data-phase="comparing"] {
+      color: var(--accent-2);
+      border-color: rgba(15,118,110,.32);
+      background: var(--green-soft);
+    }
+    .phase-status-badge[data-phase="comparing"]::before {
+      background: var(--accent);
+      box-shadow: 0 0 0 4px rgba(15,118,110,.14);
+      animation: phase-live-pulse 1.6s ease-in-out infinite;
+    }
+    .phase-status-badge[data-phase="idle"] {
+      color: var(--amber);
+      border-color: rgba(183,121,31,.30);
+      background: var(--amber-soft);
+    }
+    .phase-status-badge[data-phase="idle"]::before { background: var(--amber); }
+    .phase-status-badge[data-phase="waiting"] { color: var(--muted); }
+    .phase-status-badge[data-phase="finished"] {
+      color: var(--accent-2);
+      border-color: rgba(15,118,110,.32);
+      background: var(--green-soft);
+    }
+    .phase-status-badge[data-phase="finished"]::before { background: var(--accent); }
+    @keyframes phase-live-pulse {
+      0%, 100% { box-shadow: 0 0 0 3px rgba(15,118,110,.16); }
+      50% { box-shadow: 0 0 0 6px rgba(15,118,110,.04); }
+    }
+
+    /* 演前导览：开始前替换一排 0 值卡片，说清「这页要演什么」 */
+    .advantage-prebrief {
+      display: grid;
+      gap: 12px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(255,255,255,.92), rgba(248,250,252,.86));
+      box-shadow: var(--shadow-card);
+    }
+    .prebrief-intro p {
+      margin: 0 0 8px;
+      color: var(--ink-2);
+      font-size: 14px;
+      line-height: 1.62;
+    }
+    .prebrief-intro p:last-child { margin-bottom: 0; }
+    .prebrief-intro b { color: var(--ink); }
+    .prebrief-watch {
+      padding: 9px 11px;
+      border-left: 3px solid var(--amber);
+      border-radius: 8px;
+      background: var(--amber-soft);
+    }
+    .prebrief-watch b { color: var(--red); }
+    .prebrief-shocks {
+      display: grid;
+      gap: 7px;
+      padding-top: 12px;
+      border-top: 1px dashed var(--line-strong);
+    }
+    .prebrief-shocks-title {
+      color: var(--muted);
+      font: 800 11px var(--mono);
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+    .prebrief-shocks ul {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+    .prebrief-shocks li {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border: 1px solid rgba(183,121,31,.26);
+      border-radius: 999px;
+      background: rgba(255,255,255,.7);
+      color: var(--ink-2);
+      font-size: 12px;
+    }
+    .prebrief-shocks li b { color: var(--amber); font: 800 12px var(--mono); }
+
+    /* 进度条剧情节点：小三角标记 + 下方常驻图例，告诉观众精彩段在哪 */
+    .storyline-ticks {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+    .storyline-tick {
+      position: absolute;
+      top: 0;
+      left: var(--at);
+      width: 2px;
+      height: 100%;
+      transform: translateX(-1px);
+      background: var(--muted);
+      opacity: .85;
+    }
+    .storyline-tick[data-tone="crisis"] { background: var(--red); }
+    .storyline-tick[data-tone="shock"] { background: var(--amber); }
+    .storyline-tick[data-tone="start"] { background: var(--accent); }
+    .storyline-tick[data-tone="finish"] { background: var(--ink); }
+    .storyline-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      width: 100%;
+      margin-top: 2px;
+    }
+    .storyline-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 8px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      color: var(--ink-2);
+      font-size: 11px;
+      line-height: 1;
+    }
+    .storyline-chip b {
+      font: 800 10.5px var(--mono);
+      color: var(--muted);
+    }
+    .storyline-chip::before {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: var(--muted);
+      content: "";
+    }
+    .storyline-chip[data-tone="crisis"] { border-color: rgba(180,35,24,.3); }
+    .storyline-chip[data-tone="crisis"]::before { background: var(--red); }
+    .storyline-chip[data-tone="crisis"] b { color: var(--red); }
+    .storyline-chip[data-tone="shock"] { border-color: rgba(183,121,31,.3); }
+    .storyline-chip[data-tone="shock"]::before { background: var(--amber); }
+    .storyline-chip[data-tone="start"] { border-color: rgba(15,118,110,.3); }
+    .storyline-chip[data-tone="start"]::before { background: var(--accent); }
+    .storyline-chip[data-tone="finish"]::before { background: var(--ink); }
+
+    /* 订单点状态着色：在途/待派/已处理，订单不再「闪一下就消失」 */
+    .map-dot[data-kind="order"][data-status="active"] {
+      --size: 11px;
+      background: var(--amber);
+      box-shadow: 0 5px 16px rgba(15,23,42,.18), 0 0 0 4px rgba(183,121,31,.16);
+    }
+    .map-dot[data-kind="order"][data-status="pending"] { background: var(--amber); }
+    .map-dot[data-kind="order"][data-status="settled"] {
+      --size: 7px;
+      background: rgba(183,121,31,.45);
+      border-color: rgba(255,255,255,.7);
+      box-shadow: none;
+      opacity: .55;
+    }
+    .leaflet-map-pin-body[data-kind="order"][data-status="active"] {
+      box-shadow: 0 0 0 4px rgba(183,121,31,.18);
+    }
+    .leaflet-map-pin-body[data-kind="order"][data-status="settled"] {
+      width: 8px;
+      height: 8px;
+      background: rgba(183,121,31,.5);
+      opacity: .55;
+    }
   </style>
 </head>
 <body data-shell="dispatch-workbench-shell" data-visual-system="enterprise-dispatch-v2" data-visual-polish="chinese-enterprise-workbench-v3" data-density="high-information" data-secret-handling="env-only-redacted">
@@ -2179,6 +2343,7 @@ def render_day_replay_index() -> str:
     };
     const weatherLabels = {
       clear: "晴天",
+      cloudy: "多云",
       mixed: "混合天气",
       rain: "雨天",
       light_rain: "小雨",
@@ -2188,7 +2353,8 @@ def render_day_replay_index() -> str:
       rain_slowdown: "降雨降速",
       merchant_burst: "商家爆单",
       courier_shortage: "骑手短缺",
-      traffic_block: "道路拥堵"
+      traffic_block: "道路拥堵",
+      road_congestion: "道路拥堵"
     };
     const liveTileLayer = {
       id: "cartodb-light-nolabels",
@@ -2477,6 +2643,111 @@ def render_day_replay_index() -> str:
       return selected;
     }
 
+    // 当前推演时刻所处的时间片（携带 compare_due / demand_phase / weather / 拥堵 / 运力）。
+    function currentTimeSlice(simTimeS) {
+      const slices = workbench.timeline.time_slices || [];
+      if (!slices.length) return null;
+      let selected = slices[0];
+      for (const slice of slices) {
+        if (slice.start_s <= simTimeS) selected = slice;
+        else break;
+      }
+      return selected;
+    }
+
+    // 此刻正在生效的冲击事件（雨/爆单/拥堵/缺人）中文名。
+    function activeShockNames(simTimeS) {
+      return (workbench.map.hotspots || [])
+        .filter((hotspot) => hotspot.start_s <= simTimeS && simTimeS <= hotspot.end_s)
+        .map((hotspot) => displayShock(hotspot.type));
+    }
+
+    // 推演阶段：ready 待启动 / waiting 等首轮 / comparing 高峰对比中 / idle 平峰待机 / finished 收官。
+    function phaseStatus(simTimeS) {
+      if (!inferenceState.started) return "ready";
+      if (simTimeS >= workbench.timeline.end_s) return "finished";
+      const series = workbench.metrics.series || [];
+      if (!series.length || simTimeS < series[0].time_s) return "waiting";
+      const slice = currentTimeSlice(simTimeS);
+      return slice && slice.compare_due ? "comparing" : "idle";
+    }
+
+    const phaseStatusMeta = {
+      ready: { text: "待启动" },
+      waiting: { text: "等待首轮对比" },
+      comparing: { text: "高峰对比中" },
+      idle: { text: "平峰待机 · 数字暂不增长" },
+      finished: { text: "推演完成" }
+    };
+
+    // 一句场景旁白：说清此刻在演什么、为什么数字动或不动。
+    function sceneNarration(simTimeS) {
+      const status = phaseStatus(simTimeS);
+      if (status === "ready") {
+        return "点开始推理：贪心基线与我方算法将在同一天 207 单上各跑一遍，从 07:00 演到 23:00。";
+      }
+      if (status === "waiting") {
+        return "清晨平峰，订单零星进入推理队列；首轮算法对比要到午高峰才触发，此前累计优势恒为 0，属正常。";
+      }
+      const slice = currentTimeSlice(simTimeS) || {};
+      const phase = displayDemandPhase(slice.demand_phase);
+      const weather = displayWeather(slice.weather);
+      const shocks = activeShockNames(simTimeS);
+      const supply = slice.courier_supply;
+      if (status === "finished") {
+        const final = workbench.metrics.final.deltas;
+        return `全天收官：我方比贪心基线少 ${fmtNumber(final.time_saved_min, 1)} 分钟、省 ${fmtNumber(final.money_saved_yuan, 1)} 元，超时单${fmtFewer(final.timeout_order_delta, "单")}。`;
+      }
+      if (status === "idle") {
+        return `${phase}平峰（${weather}、运力 ${supply} 人），系统判断无需算法对比，累计优势暂不增长——这是设计如此，不是卡住。`;
+      }
+      // comparing
+      const shockText = shocks.length ? `，叠加${shocks.join("、")}冲击` : "";
+      return `${phase}对比进行中：${weather}${shockText}，运力 ${supply} 人。每隔一轮重算派单，我方相对贪心的优势正在累计。`;
+    }
+
+    // 数据驱动的剧情节点（用于进度条标记）：首轮对比、贪心首次超时、各冲击、收官。
+    function storylineMarkers() {
+      const markers = [];
+      const span = timelineSpanS();
+      const start = workbench.timeline.start_s;
+      const pctOf = (timeS) => clamp((timeS - start) / span, 0, 1) * 100;
+      const series = workbench.metrics.series || [];
+      if (series.length) {
+        markers.push({ time_s: series[0].time_s, label: "首轮算法对比", tone: "start" });
+        const firstLate = series.find((item) => (item.baseline && item.baseline.late_orders > 0) || (item.deltas && item.deltas.timeout_order_delta < 0));
+        if (firstLate) markers.push({ time_s: firstLate.time_s, label: "贪心首次超时", tone: "crisis" });
+      }
+      for (const hotspot of workbench.map.hotspots || []) {
+        markers.push({ time_s: hotspot.start_s, label: displayShock(hotspot.type) + "冲击", tone: "shock" });
+      }
+      markers.push({ time_s: workbench.timeline.end_s, label: "全天收官", tone: "finish" });
+      const seen = new Set();
+      return markers
+        .filter((marker) => {
+          const key = Math.round(marker.time_s / 60) + ":" + marker.label;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .sort((a, b) => a.time_s - b.time_s)
+        .map((marker) => ({ ...marker, pct: pctOf(marker.time_s), label_time: clock(marker.time_s) }));
+    }
+
+    // 进度条上常驻的剧情节点小三角（带 hover 提示）。
+    function renderStorylineTicks() {
+      return `<span class="storyline-ticks" aria-hidden="true">${storylineMarkers().map((marker) =>
+        `<i class="storyline-tick" data-tone="${escapeHtml(marker.tone)}" style="--at:${marker.pct}%" title="${escapeHtml(`${marker.label_time} ${marker.label}`)}"></i>`
+      ).join("")}</span>`;
+    }
+
+    // 进度条下方的剧情节点图例：钟点 + 事件名，让观众一眼知道精彩段在哪。
+    function renderStorylineLegend() {
+      return storylineMarkers().map((marker) =>
+        `<span class="storyline-chip" data-tone="${escapeHtml(marker.tone)}"><b>${escapeHtml(marker.label_time)}</b>${escapeHtml(marker.label)}</span>`
+      ).join("");
+    }
+
     function preDispatchDecision(simTimeS) {
       const queuedOrders = workbench.map.anchors.orders.filter((order) => order.created_at_s <= simTimeS).slice(-8).map((order) => order.id);
       const onlineRiders = workbench.entities.riders.slice(0, 6).map((rider) => rider.id);
@@ -2611,17 +2882,33 @@ def render_day_replay_index() -> str:
       return [...previousRoutes, ...ours.slice(0, 6).map((route) => ({...route, renderLane: "ours"}))];
     }
 
+    // 订单点一旦出现就保留在地图上，并按状态着色（在途 / 待派 / 已处理），不再「闪一下就消失」。
     function ordersForMap(frame) {
-      const anchorsById = Object.fromEntries(workbench.map.anchors.orders.map((order) => [order.id, order]));
+      const now = inferenceState.currentTimeS;
       const activeIds = new Set([...(frame.challenger.active_order_ids || []), ...(frame.highlighted_order_ids || [])]);
-      const currentRouteOrderIds = new Set(routeRowsForFrame(frame, "ours").map((route) => route.order_id).filter(Boolean));
-      for (const orderId of currentRouteOrderIds) activeIds.add(orderId);
-      if (currentRouteOrderIds.size || activeIds.size) {
-        return [...activeIds].map((id) => anchorsById[id]).filter(Boolean).sort((a, b) => a.created_at_s - b.created_at_s).slice(-32);
+      for (const route of routeRowsForFrame(frame, "ours")) {
+        if (route.order_id) activeIds.add(route.order_id);
       }
-      const recent = workbench.map.anchors.orders.filter((order) => order.created_at_s <= inferenceState.currentTimeS && order.created_at_s >= inferenceState.currentTimeS - 1800);
-      for (const order of recent) activeIds.add(order.id);
-      return [...activeIds].map((id) => anchorsById[id]).filter(Boolean).sort((a, b) => a.created_at_s - b.created_at_s).slice(-32);
+      const created = workbench.map.anchors.orders.filter((order) => order.created_at_s <= now);
+      // 保留最近 64 个已出现订单，再补回所有活跃单（即使较早），既不让点消失、也撑满高潮期地图。
+      const chosen = created.slice(-64);
+      const chosenIds = new Set(chosen.map((order) => order.id));
+      for (const order of created) {
+        if (activeIds.has(order.id) && !chosenIds.has(order.id)) {
+          chosen.push(order);
+          chosenIds.add(order.id);
+        }
+      }
+      const statusRank = { active: 0, pending: 1, settled: 2 };
+      return chosen
+        .map((order) => {
+          let status = "settled";
+          if (activeIds.has(order.id)) status = "active";
+          else if (order.created_at_s >= now - 900) status = "pending";
+          return { ...order, status };
+        })
+        // 在途/待派单优先，其后按时间倒序补最近的已处理单：保证渲染截断后仍能看到关键单 + 一层背景单。
+        .sort((a, b) => (statusRank[a.status] - statusRank[b.status]) || (b.created_at_s - a.created_at_s));
     }
 
     function riderPositionsForFrame(frame) {
@@ -2637,52 +2924,19 @@ def render_day_replay_index() -> str:
     }
 
     function movingRiderPositions(frame) {
-      return groupedMovingRiderPositions(frame);
-    }
-
-    function groupedMovingRiderPositions(frame) {
       const tracks = frame.challenger?.simulation_trace?.courier_tracks || [];
-      const taskOrdersByCourier = assignmentOrderIdsByCourier(frame);
-      const grouped = new Map();
-      for (const track of tracks.slice(0, 18)) {
+      return tracks.slice(0, 18).map((track) => {
         const sample = trackPositionAt(track, inferenceState.currentTimeS);
-        if (!sample) continue;
-        const courierId = track.courier_id;
-        const taskOrderIds = uniqueIds([track.order_id, ...(taskOrdersByCourier.get(courierId) || [])]);
-        const existing = grouped.get(courierId);
-        if (existing) {
-          existing.task_order_ids = uniqueIds([...(existing.task_order_ids || []), ...taskOrderIds]);
-          existing.task_order_count = existing.task_order_ids.length;
-          continue;
-        }
-        grouped.set(courierId, {
-          id: courierId,
-          label: courierId,
+        return sample ? {
+          id: track.courier_id,
+          label: track.courier_id,
           order_id: track.order_id,
-          task_order_ids: taskOrderIds,
-          task_order_count: taskOrderIds.length,
           position: sample.position,
           motion: "moving",
           phase: sample.phase,
           progress: sample.progress
-        });
-      }
-      return Array.from(grouped.values());
-    }
-
-    function assignmentOrderIdsByCourier(frame) {
-      const groups = new Map();
-      for (const assignment of frame.challenger?.assignments || []) {
-        if (!assignment.courier_id || !assignment.order_id) continue;
-        const existing = groups.get(assignment.courier_id) || [];
-        existing.push(assignment.order_id);
-        groups.set(assignment.courier_id, existing);
-      }
-      return groups;
-    }
-
-    function uniqueIds(ids = []) {
-      return [...new Set(ids.filter(Boolean))];
+        } : null;
+      }).filter(Boolean);
     }
 
     function trackPositionAt(track, simTimeS) {
@@ -2729,11 +2983,6 @@ def render_day_replay_index() -> str:
               <span>${escapeHtml(copy.outcome)}</span>
             </div>
           </div>
-          <aside class="page-role-card" aria-label="当前页面说明">
-            <b>${escapeHtml(copy.navLabel)}</b>
-            <span>${escapeHtml(copy.navHint)}</span>
-            <em>全天预置数据回放</em>
-          </aside>
         </div>
       `;
     }
@@ -2884,6 +3133,12 @@ def render_day_replay_index() -> str:
       setText("inference-event-count", events.length);
       setText("live-advantage-headline", liveAdvantageHeadline(currentScore));
       setText("live-advantage-copy", liveAdvantageCopy(currentScore));
+      const phaseBadge = document.getElementById("phase-status-badge");
+      if (phaseBadge) {
+        const status = phaseStatus(inferenceState.currentTimeS);
+        phaseBadge.dataset.phase = status;
+        phaseBadge.textContent = phaseStatusMeta[status].text;
+      }
       const targetRow = document.getElementById("advantage-target-row");
       if (targetRow) targetRow.innerHTML = renderAdvantageTargetRow(currentScore);
       setText("map-runtime-hint", `${stateLabel} / ${clock(inferenceState.currentTimeS)} / ${inferenceModeLabels[inferenceState.mode]}`);
@@ -2952,61 +3207,55 @@ def render_day_replay_index() -> str:
       `).join("");
     }
 
+    // 大字只承载一个核心数字（累计省时），其余信息交给徽章/旁白/卡片，避免重复。
     function liveAdvantageHeadline(score) {
       const delta = score.deltas || {};
       const timeSaved = Number(delta.time_saved_min || 0);
       if (!inferenceState.started) {
-        return "等待开始推理";
+        return "贪心基线 vs 我方算法 · 全天对决";
       }
       if (inferenceState.currentTimeS >= workbench.timeline.end_s) {
-        return `全日推演完成：节省 ${fmtNumber(timeSaved, 1)} 分钟`;
+        return `全天为站点省下 ${fmtNumber(timeSaved, 1)} 分钟`;
       }
       if (timeSaved <= 0) {
-        return "正在等待首轮有效优势";
+        return "等待午高峰首轮对比";
       }
-      return `已节省 ${fmtNumber(timeSaved, 1)} 分钟`;
+      return `已累计省下 ${fmtNumber(timeSaved, 1)} 分钟`;
     }
 
+    // 副文案专职「场景旁白」：解释此刻在演什么、数字为何动或不动，不再重复数字。
     function liveAdvantageCopy(score) {
-      const delta = score.deltas || {};
-      const finalDelta = workbench.metrics.final.deltas;
-      const timeSaved = Number(delta.time_saved_min || 0);
-      const moneySaved = Number(delta.money_saved_yuan || 0);
-      const timeoutText = fmtFewer(delta.timeout_order_delta || 0, "单");
-      if (!inferenceState.started) {
-        return "点击开始推理后，系统会按全天时间线自动释放订单、移动骑手、重算路线，并实时累计我方相对基线的优势。";
-      }
-      if (timeSaved <= 0) {
-        return "推理已开始，当前仍在等待首轮规划评分。优势卡片只展示已经推演到的累计结果，不提前展示全日结论。";
-      }
-      if (inferenceState.currentTimeS >= workbench.timeline.end_s) {
-        return `全日回放已完成：我方比基线少 ${fmtNumber(finalDelta.time_saved_min, 1)} 分钟、少 ${fmtNumber(finalDelta.money_saved_yuan, 1)} 元成本，超时单${fmtFewer(finalDelta.timeout_order_delta, "单")}。`;
-      }
-      return `推理正在自动推进：当前累计少 ${fmtNumber(moneySaved, 1)} 元成本，超时单${timeoutText}，地图只展示我方动作和差异路线。`;
+      return sceneNarration(inferenceState.currentTimeS);
     }
 
+    // target-row 专职「场景事实」：阶段 / 天气 / 运力 / 冲击，提供数字之外的上下文。
     function renderAdvantageTargetRow(score) {
       if (!inferenceState.started) {
+        const shockCount = (workbench.map.hotspots || []).length;
         return `
-          <span>开始后累计验证</span>
-          <span>全日结论暂不展示</span>
-          <span>地图将自动推进</span>
+          <span>207 单 · 18 骑手</span>
+          <span>07:00 → 23:00</span>
+          <span>重点看 ${shockCount} 个压力时刻</span>
         `;
       }
-      const delta = score.deltas || {};
       if (inferenceState.currentTimeS >= workbench.timeline.end_s) {
-        const finalDelta = workbench.metrics.final.deltas;
+        const finalOurs = workbench.metrics.final.ours || {};
+        const finalBase = workbench.metrics.final.baseline || {};
         return `
-          <span>全日节省 ${fmtNumber(finalDelta.time_saved_min, 1)} 分钟</span>
-          <span>成本优势 ${fmtNumber(finalDelta.money_saved_yuan, 1)} 元</span>
-          <span>超时单${fmtFewer(finalDelta.timeout_order_delta, "单")}</span>
+          <span>双方均送达 ${finalOurs.delivered_orders || finalBase.delivered_orders || 0} 单</span>
+          <span>我方全天 ${finalOurs.late_orders || 0} 超时</span>
+          <span>进度 100%</span>
         `;
       }
-      return `
-        <span>当前进度 ${fmtNumber(inferenceProgressPct(), 1)}%</span>
-        <span>已累计 ${fmtNumber(delta.time_saved_min || 0, 1)} 分钟</span>
-        <span>成本 ${fmtNumber(delta.money_saved_yuan || 0, 1)} 元</span>
-      `;
+      const slice = currentTimeSlice(inferenceState.currentTimeS) || {};
+      const shocks = activeShockNames(inferenceState.currentTimeS);
+      const facts = [
+        `阶段 ${displayDemandPhase(slice.demand_phase)}`,
+        `天气 ${displayWeather(slice.weather)}`,
+        `运力 ${slice.courier_supply === undefined ? "-" : slice.courier_supply} 人`
+      ];
+      if (shocks.length) facts.push(`冲击 ${shocks.join("·")}`);
+      return facts.map((fact) => `<span>${escapeHtml(fact)}</span>`).join("");
     }
 
     function renderNav() {
@@ -3074,7 +3323,10 @@ def render_day_replay_index() -> str:
         <div class="page-grid live-grid" data-page="live" data-inference-state="${inferenceState.running ? "running" : inferenceState.started ? "paused" : "ready"}">
           <section id="live-advantage-hero" class="live-advantage-hero" data-live-priority="advantage-first">
             <div class="advantage-lead">
-              <span class="advantage-kicker">实时累计对比栏</span>
+              <span class="advantage-kicker-row">
+                <span class="advantage-kicker">实时累计对比栏</span>
+                <span id="phase-status-badge" class="phase-status-badge" data-phase="${escapeHtml(phaseStatus(inferenceState.currentTimeS))}">${escapeHtml(phaseStatusMeta[phaseStatus(inferenceState.currentTimeS)].text)}</span>
+              </span>
               <h3 id="live-advantage-headline">${escapeHtml(liveAdvantageHeadline(currentScore))}</h3>
               <p id="live-advantage-copy">${escapeHtml(liveAdvantageCopy(currentScore))}</p>
               <div id="advantage-target-row" class="advantage-target-row" aria-label="全天最终优势目标">
@@ -3099,7 +3351,8 @@ def render_day_replay_index() -> str:
                 <div class="runtime-cell"><span>模式</span><b id="inference-mode-label">${escapeHtml(inferenceModeLabels[inferenceState.mode])}</b></div>
                 <div class="runtime-cell"><span>释放事件</span><b id="inference-event-count">${releasedEvents(inferenceState.currentTimeS).length}</b></div>
               </div>
-              <div id="inference-progress-control" class="inference-progress" role="slider" tabindex="0" aria-label="点击跳转到对应推演时间" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${inferenceProgressPct()}" aria-valuetext="${escapeHtml(`${clock(inferenceState.currentTimeS)} / ${fmtNumber(inferenceProgressPct(), 1)}%`)}" title="点击进度条跳转到对应推演时间"><span id="inference-progress-bar" style="--progress:${inferenceProgressPct()}%"></span></div>
+              <div id="inference-progress-control" class="inference-progress" role="slider" tabindex="0" aria-label="点击跳转到对应推演时间" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${inferenceProgressPct()}" aria-valuetext="${escapeHtml(`${clock(inferenceState.currentTimeS)} / ${fmtNumber(inferenceProgressPct(), 1)}%`)}" title="点击进度条跳转到对应推演时间"><span id="inference-progress-bar" style="--progress:${inferenceProgressPct()}%"></span>${renderStorylineTicks()}</div>
+              <div class="storyline-legend" aria-label="全天剧情节点">${renderStorylineLegend()}</div>
               </div>
               <div class="card map-panel">
               <div class="card-head"><h3>实时地图层</h3><span id="map-runtime-hint">商家 / 订单 / 骑手 / 路线 / 热点</span></div>
@@ -3331,7 +3584,7 @@ def render_day_replay_index() -> str:
           ${renderHotspots()}
           ${renderMapDots("merchant", workbench.map.anchors.merchants.slice(0, 16), "position")}
           ${renderMapDots("rider", riders.slice(0, 14), "position")}
-          ${renderMapDots("order", orders.slice(0, 22), "dropoff", focusOrderIds)}
+          ${renderMapDots("order", orders.slice(0, 40), "dropoff", focusOrderIds)}
         </div>
         ${renderMapLegend()}
       `;
@@ -3350,39 +3603,8 @@ def render_day_replay_index() -> str:
             const points = route.progressPolyline.map((point) => `${point.screen_x},${point.screen_y}`).join(" ");
             return `<polyline class="route-line" data-lane="active-progress" data-order-ref="${escapeHtml(actionDisplayLabel("order", route))}" data-rider-ref="${escapeHtml(actionDisplayLabel("rider", route))}" points="${escapeHtml(points)}"></polyline>`;
           }).join("")}
-          ${routes.filter(shouldShowRouteAssignmentLabel).map((route) => {
-            const point = routeLabelPoint(route);
-            if (!point) return "";
-            return `<text class="route-assignment-label" data-lane="${escapeHtml(route.renderLane || route.lane)}" x="${point.screen_x}" y="${point.screen_y}" text-anchor="middle">${escapeHtml(routeAssignmentLabel(route))}</text>`;
-          }).join("")}
         </svg>
       `;
-    }
-
-    function shouldShowRouteAssignmentLabel(route) {
-      const lane = route.renderLane || route.lane;
-      return ["ours", "difference"].includes(lane);
-    }
-
-    function routeAssignmentLabel(route) {
-      return actionPairLabel(route);
-    }
-
-    function routeLabelPoint(route) {
-      const points = route.polyline || [];
-      if (points.length >= 3) return interpolateMapPoint(points[1], points[2], .72);
-      if (points.length >= 2) return interpolateMapPoint(points[0], points[1], .5);
-      return points[0] || null;
-    }
-
-    function interpolateMapPoint(start, end, ratio) {
-      const mix = (left, right) => Number(left) + (Number(right) - Number(left)) * ratio;
-      return {
-        lat: mix(start.lat, end.lat),
-        lng: mix(start.lng, end.lng),
-        screen_x: mix(start.screen_x, end.screen_x),
-        screen_y: mix(start.screen_y, end.screen_y)
-      };
     }
 
     function activeMapRider(riders = []) {
@@ -3422,9 +3644,7 @@ def render_day_replay_index() -> str:
         const movingAction = { order_id: moving.order_id, courier_id: moving.id };
         const orderLabel = moving.order_id ? actionDisplayLabel("order", movingAction) : "当前订单";
         const riderLabel = actionDisplayLabel("rider", movingAction);
-        const extraOrders = orderLabelsForIds(moving.task_order_ids || []).filter((label) => label !== orderLabel);
-        const taskChain = extraOrders.length ? `，同一骑手本轮还承接 ${extraOrders.join("、")}` : "";
-        return `<strong>${escapeHtml(riderLabel)} 正在执行 ${escapeHtml(orderLabel)}</strong><span>路线进度 ${fmtNumber((moving.progress || 0) * 100, 0)}%${escapeHtml(taskChain)}。地图只突出本轮规划、执行进度和必要差异。</span>`;
+        return `<strong>${escapeHtml(riderLabel)} 正在执行 ${escapeHtml(orderLabel)}</strong><span>路线进度 ${fmtNumber((moving.progress || 0) * 100, 0)}%，地图只突出我方动作和必要差异。</span>`;
       }
       const route = routes.find((item) => (item.renderLane || item.lane) === "ours") || routes[0];
       if (route) {
@@ -3444,18 +3664,18 @@ def render_day_replay_index() -> str:
     function renderMapDots(kind, items, positionKey, focusOrderIds = new Set()) {
       return items.map((item, index) => {
         const pos = item[positionKey];
-        const release = kind === "order" && item.created_at_s >= inferenceState.currentTimeS - 900 ? "new" : "stable";
+        const status = kind === "order" ? (item.status || "pending") : "";
+        const release = kind === "order" && status === "pending" && item.created_at_s >= inferenceState.currentTimeS - 900 ? "new" : "stable";
         const motion = kind === "rider" ? (item.motion || "snapshot") : "";
         const label = mapEntityLabel(kind, item, index);
         const showLabel = shouldShowMapLabel(kind, item, index, label, focusOrderIds);
-        return `<span class="map-dot" data-kind="${escapeHtml(kind)}" data-map-ref="${escapeHtml(label)}" data-map-label="${escapeHtml(label)}" data-show-label="${showLabel}" data-release="${escapeHtml(release)}" data-motion="${escapeHtml(motion)}" data-phase="${escapeHtml(item.phase || "")}" title="${escapeHtml(mapEntityTitle(kind, label, item))}" aria-label="${escapeHtml(mapEntityTitle(kind, label, item))}" style="--x:${pos.screen_x};--y:${pos.screen_y}"></span>`;
+        return `<span class="map-dot" data-kind="${escapeHtml(kind)}" data-map-ref="${escapeHtml(label)}" data-map-label="${escapeHtml(label)}" data-show-label="${showLabel}" data-release="${escapeHtml(release)}" data-status="${escapeHtml(status)}" data-motion="${escapeHtml(motion)}" data-phase="${escapeHtml(item.phase || "")}" title="${escapeHtml(mapEntityTitle(kind, label, item))}" aria-label="${escapeHtml(mapEntityTitle(kind, label, item))}" style="--x:${pos.screen_x};--y:${pos.screen_y}"></span>`;
       }).join("");
     }
 
     function renderMapLegend() {
       const routeItems = [
-        ["ours", "本轮规划路线"],
-        ["active-progress", "当前执行进度"],
+        ["ours", "我方路线"],
         ["previous", "旧路线淡出"],
         ["baseline", "基线差异"],
         ["difference", "叠加差异"]
@@ -3500,10 +3720,6 @@ def render_day_replay_index() -> str:
       return `${actionDisplayLabel("order", item)} 派给 ${actionDisplayLabel("rider", item)}`;
     }
 
-    function orderLabelsForIds(orderIds = []) {
-      return uniqueIds(orderIds).map((orderId) => actionDisplayLabel("order", { order_id: orderId }));
-    }
-
     function focusedMapOrderIds(routes = [], riders = []) {
       const ids = new Set();
       for (const route of routes) {
@@ -3530,9 +3746,10 @@ def render_day_replay_index() -> str:
         hotspot: "热点"
       }[kind] || "实体";
       const details = [];
+      const orderStatusLabels = { active: "在途", pending: "待派", settled: "已处理" };
+      if (kind === "order" && orderStatusLabels[item.status]) details.push(orderStatusLabels[item.status]);
       if (item.risk_level) details.push(`风险:${displayRisk(item.risk_level)}`);
       if (item.phase) details.push(displayRiderState(item.phase));
-      if (kind === "rider" && item.task_order_ids?.length > 1) details.push(`任务链:${orderLabelsForIds(item.task_order_ids).join(" + ")}`);
       return `${kindLabel} ${label}${details.length ? ` / ${details.join(" / ")}` : ""}`;
     }
 
@@ -3558,7 +3775,7 @@ def render_day_replay_index() -> str:
       if (!window.L || !stage || !liveLeafletMap || !liveLeafletOverlayGroup || stage.dataset.realMapStatus !== "leaflet") return false;
       try {
         stage.dataset.leafletRouteCount = String(routes.length);
-        stage.dataset.leafletMarkerCount = String(workbench.map.anchors.merchants.slice(0, 16).length + riders.slice(0, 14).length + orders.slice(0, 22).length);
+        stage.dataset.leafletMarkerCount = String(workbench.map.anchors.merchants.slice(0, 16).length + riders.slice(0, 14).length + orders.slice(0, 40).length);
         const chip = stage.querySelector(".map-mode-chip");
         if (chip) chip.textContent = `${inferenceModeLabels[inferenceState.mode]} / ${frame.id}`;
         liveLeafletOverlayGroup.clearLayers();
@@ -3583,7 +3800,7 @@ def render_day_replay_index() -> str:
       try {
         stage.dataset.realMapStatus = "loading";
         stage.dataset.leafletRouteCount = String(routes.length);
-        stage.dataset.leafletMarkerCount = String(workbench.map.anchors.merchants.slice(0, 16).length + riders.slice(0, 14).length + orders.slice(0, 22).length);
+        stage.dataset.leafletMarkerCount = String(workbench.map.anchors.merchants.slice(0, 16).length + riders.slice(0, 14).length + orders.slice(0, 40).length);
         const map = window.L.map(container, {
           attributionControl: true,
           boxZoom: true,
@@ -3622,7 +3839,7 @@ def render_day_replay_index() -> str:
       renderLeafletRoutes(layerGroup, routes, riders);
       renderLeafletMarkers(layerGroup, "merchant", workbench.map.anchors.merchants.slice(0, 16), "position");
       renderLeafletMarkers(layerGroup, "rider", riders.slice(0, 14), "position");
-      renderLeafletMarkers(layerGroup, "order", orders.slice(0, 22), "dropoff", focusedMapOrderIds(routes, riders));
+      renderLeafletMarkers(layerGroup, "order", orders.slice(0, 40), "dropoff", focusedMapOrderIds(routes, riders));
     }
 
     function mapBounds() {
@@ -3663,25 +3880,6 @@ def render_day_replay_index() -> str:
         if (points.length < 2) continue;
         window.L.polyline(points, routeProgressStyle()).bindTooltip(escapeHtml(`当前执行 / ${routeTooltip(route)}`), { sticky: true }).addTo(map);
       }
-      renderLeafletRouteLabels(map, routes);
-    }
-
-    function renderLeafletRouteLabels(map, routes = []) {
-      for (const route of routes.filter(shouldShowRouteAssignmentLabel)) {
-        const point = routeLabelPoint(route);
-        if (!point || !Number.isFinite(Number(point.lat)) || !Number.isFinite(Number(point.lng))) continue;
-        window.L.marker(mapPoint(point), {
-          icon: window.L.divIcon({
-            className: "leaflet-route-assignment",
-            html: `<span>${escapeHtml(routeAssignmentLabel(route))}</span>`,
-            iconAnchor: [48, 10],
-            iconSize: [96, 20]
-          }),
-          interactive: false,
-          keyboard: false,
-          zIndexOffset: 420
-        }).addTo(map);
-      }
     }
 
     function routeStyle(lane) {
@@ -3717,7 +3915,7 @@ def render_day_replay_index() -> str:
 
     function routeTooltip(route) {
       const laneLabel = {
-        ours: "本轮规划路线",
+        ours: "我方路线",
         previous: "旧路线",
         baseline: "基线差异",
         difference: "叠加差异"
@@ -3730,21 +3928,22 @@ def render_day_replay_index() -> str:
         const pos = item[positionKey];
         if (!pos || !Number.isFinite(Number(pos.lat)) || !Number.isFinite(Number(pos.lng))) return;
         const label = mapEntityLabel(kind, item, index);
-        const release = kind === "order" && item.created_at_s >= inferenceState.currentTimeS - 900 ? "new" : "stable";
+        const status = kind === "order" ? (item.status || "pending") : "";
+        const release = kind === "order" && status === "pending" && item.created_at_s >= inferenceState.currentTimeS - 900 ? "new" : "stable";
         const motion = kind === "rider" ? (item.motion || "snapshot") : "";
         window.L.marker(mapPoint(pos), {
-          icon: renderLeafletMarker(kind, label, release, motion, index, shouldShowMapLabel(kind, item, index, label, focusOrderIds)),
+          icon: renderLeafletMarker(kind, label, release, motion, index, shouldShowMapLabel(kind, item, index, label, focusOrderIds), status),
           keyboard: false,
-          zIndexOffset: kind === "rider" ? 500 : kind === "order" ? 300 : 100
+          zIndexOffset: kind === "rider" ? 500 : kind === "order" ? (status === "active" ? 350 : 300) : 100
         }).bindTooltip(escapeHtml(mapEntityTitle(kind, label, item)), { direction: "top", opacity: .92, sticky: true }).addTo(map);
       });
     }
 
-    function renderLeafletMarker(kind, label, release, motion, index = 0, showLabel = null) {
+    function renderLeafletMarker(kind, label, release, motion, index = 0, showLabel = null, status = "") {
       const visible = showLabel ?? (kind === "rider" || (kind === "order" && index < 4));
       return window.L.divIcon({
         className: "leaflet-map-pin",
-        html: `<span class="leaflet-map-pin-body" data-kind="${escapeHtml(kind)}" data-release="${escapeHtml(release)}" data-motion="${escapeHtml(motion)}"></span>${visible ? `<span class="leaflet-map-pin-label">${escapeHtml(label)}</span>` : ""}`,
+        html: `<span class="leaflet-map-pin-body" data-kind="${escapeHtml(kind)}" data-release="${escapeHtml(release)}" data-status="${escapeHtml(status)}" data-motion="${escapeHtml(motion)}"></span>${visible ? `<span class="leaflet-map-pin-label">${escapeHtml(label)}</span>` : ""}`,
         iconAnchor: [8, 8],
         iconSize: [16, 16]
       });
@@ -3755,19 +3954,42 @@ def render_day_replay_index() -> str:
       return `<div class="score-card" data-tone="${escapeHtml(tone)}"${metricAttrs}><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b><span>${escapeHtml(detail)}</span></div>`;
     }
 
+    // 开始前的「演前导览」：用一段说明 + 全天压力时刻替换一排 0 值卡片。
+    function renderAdvantagePrebrief() {
+      const shocks = (workbench.map.hotspots || []).slice().sort((a, b) => a.start_s - b.start_s);
+      const shockItems = shocks.map((hotspot) =>
+        `<li><b>${escapeHtml(clock(hotspot.start_s))}</b><span>${escapeHtml(displayShock(hotspot.type))}</span></li>`
+      ).join("");
+      return `
+        <div class="advantage-prebrief" data-score-section="prebrief">
+          <div class="prebrief-intro">
+            <p>这是一场<b>同数据对照实验</b>：贪心基线与我方算法，在同一天的 207 单上各跑一遍（07:00 → 23:00），右侧实时累计「我方比贪心好多少」。</p>
+            <p class="prebrief-watch">看点：平峰时两者差不多；<b>一旦遇到压力，贪心会开始超时，而我方要稳住 0 超时</b>。</p>
+          </div>
+          <div class="prebrief-shocks">
+            <span class="prebrief-shocks-title">全天 ${shocks.length} 个压力时刻</span>
+            <ul>${shockItems}</ul>
+          </div>
+        </div>
+      `;
+    }
+
     function renderLiveScoreCards(score) {
+      if (!inferenceState.started) {
+        return renderAdvantagePrebrief();
+      }
       const timeoutTone = score.deltas.timeout_order_delta <= 0 ? "good" : "risk";
-      const profitTone = score.deltas.profit_delta_yuan >= 0 ? "good" : "risk";
+      const moneyTone = score.deltas.money_saved_yuan >= 0 ? "good" : "risk";
+      // 累计成本对照：贪心基线（对照） vs 我方算法（实验）。
       return `
         <div class="algorithm-pair" data-score-section="algorithm-cumulative">
-          ${renderScoreCard("基线/弹金算法累计", `${fmtNumber(score.baseline.total_cost_yuan, 1)} 元`, `${fmtNumber(score.baseline.total_time_cost_min, 1)} 分钟 / ${score.baseline.late_orders} 超时单`, "warn", "metric-baseline-cumulative")}
-          ${renderScoreCard("我们的算法累计", `${fmtNumber(score.ours.total_cost_yuan, 1)} 元`, `${fmtNumber(score.ours.total_time_cost_min, 1)} 分钟 / ${score.ours.late_orders} 超时单`, "good", "metric-ours-cumulative")}
+          ${renderScoreCard("贪心基线（对照）", `${fmtNumber(score.baseline.total_cost_yuan, 1)} 元`, `累计 ${fmtNumber(score.baseline.total_time_cost_min, 1)} 分钟 / ${score.baseline.late_orders} 超时单`, "warn", "metric-baseline-cumulative")}
+          ${renderScoreCard("我方算法（实验）", `${fmtNumber(score.ours.total_cost_yuan, 1)} 元`, `累计 ${fmtNumber(score.ours.total_time_cost_min, 1)} 分钟 / ${score.ours.late_orders} 超时单`, "good", "metric-ours-cumulative")}
         </div>
         <div class="delta-grid" data-score-section="advantage-deltas">
-          ${renderScoreCard("时间差异", `节省 ${fmtNumber(score.deltas.time_saved_min, 1)} 分钟`, score.deltas.headline, "good", "metric-time-delta")}
-          ${renderScoreCard("金钱差异", `节省 ${fmtNumber(score.deltas.money_saved_yuan, 1)} 元`, `收益 ${fmtSigned(score.deltas.revenue_delta_yuan, 1)} 元 / 利润 ${fmtSigned(score.deltas.profit_delta_yuan, 1)} 元`, profitTone, "metric-money-delta")}
-          ${renderScoreCard("超时单差异", fmtFewer(score.deltas.timeout_order_delta, "单"), `风险差异 ${fmtSigned(score.deltas.timeout_risk_delta, 3)}`, timeoutTone, "metric-timeout-delta")}
-          ${renderScoreCard("收益/成本差异", `${fmtSigned(score.deltas.profit_delta_yuan, 1)} 元`, `收入 ${fmtSigned(score.deltas.revenue_delta_yuan, 1)} 元 / 成本节省 ${fmtNumber(score.deltas.money_saved_yuan, 1)} 元`, profitTone, "metric-profit-delta")}
+          ${renderScoreCard("省时间", `${fmtNumber(score.deltas.time_saved_min, 1)} 分钟`, `贪心 ${fmtNumber(score.baseline.total_time_cost_min, 0)} → 我方 ${fmtNumber(score.ours.total_time_cost_min, 0)} 分钟`, "good", "metric-time-delta")}
+          ${renderScoreCard("省成本", `${fmtNumber(score.deltas.money_saved_yuan, 1)} 元`, `贪心 ${fmtNumber(score.baseline.total_cost_yuan, 0)} → 我方 ${fmtNumber(score.ours.total_cost_yuan, 0)} 元`, moneyTone, "metric-money-delta")}
+          ${renderScoreCard("超时单", fmtFewer(score.deltas.timeout_order_delta, "单"), `贪心 ${score.baseline.late_orders} 单 → 我方 ${score.ours.late_orders} 单`, timeoutTone, "metric-timeout-delta")}
         </div>
       `;
     }
@@ -3776,12 +3998,12 @@ def render_day_replay_index() -> str:
       return `<div class="metric-chip" id="metric-chip-${escapeHtml(metricId)}" data-metric="${escapeHtml(metricId)}"><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b><span>${escapeHtml(detail)}</span></div>`;
     }
 
+    // 与首屏对比栏口径一致：省时间 / 省成本 / 超时单，去掉重复的「收益/成本差异」。
     function renderLiveCumulativeMetrics(score) {
       return [
-        renderMetricChip("time-delta", "时间差异", `${fmtNumber(score.deltas.time_saved_min, 1)} 分钟`, `基线 ${fmtNumber(score.baseline.total_time_cost_min, 1)} / 我方 ${fmtNumber(score.ours.total_time_cost_min, 1)}`),
-        renderMetricChip("money-delta", "金钱差异", `${fmtNumber(score.deltas.money_saved_yuan, 1)} 元`, `基线 ${fmtNumber(score.baseline.total_cost_yuan, 1)} / 我方 ${fmtNumber(score.ours.total_cost_yuan, 1)}`),
-        renderMetricChip("timeout-delta", "超时单差异", fmtFewer(score.deltas.timeout_order_delta, "单"), `基线 ${score.baseline.late_orders} / 我方 ${score.ours.late_orders}`),
-        renderMetricChip("profit-delta", "收益/成本差异", `${fmtSigned(score.deltas.profit_delta_yuan, 1)} 元`, `收益 ${fmtSigned(score.deltas.revenue_delta_yuan, 1)} / 成本 ${fmtNumber(score.deltas.money_saved_yuan, 1)}`)
+        renderMetricChip("time-delta", "省时间", `${fmtNumber(score.deltas.time_saved_min, 1)} 分钟`, `贪心 ${fmtNumber(score.baseline.total_time_cost_min, 0)} / 我方 ${fmtNumber(score.ours.total_time_cost_min, 0)}`),
+        renderMetricChip("money-delta", "省成本", `${fmtNumber(score.deltas.money_saved_yuan, 1)} 元`, `贪心 ${fmtNumber(score.baseline.total_cost_yuan, 0)} / 我方 ${fmtNumber(score.ours.total_cost_yuan, 0)}`),
+        renderMetricChip("timeout-delta", "超时单", fmtFewer(score.deltas.timeout_order_delta, "单"), `贪心 ${score.baseline.late_orders} / 我方 ${score.ours.late_orders}`)
       ].join("");
     }
 

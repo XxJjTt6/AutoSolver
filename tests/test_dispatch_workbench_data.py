@@ -153,6 +153,21 @@ class DispatchWorkbenchDataTest(unittest.TestCase):
         self.assertEqual(first_route["order_label"], order_aliases[first_route["order_id"]])
         self.assertEqual(first_route["courier_label"], rider_aliases[first_route["courier_id"]])
 
+    def test_simulation_trace_has_one_active_track_per_courier(self):
+        contract = run_full_day_comparison(
+            seed="frontend-shell",
+            controls=DaySimulationControls(courier_count=18, order_scale=0.38, weather="mixed", congestion_profile="weekday"),
+        )
+
+        for frame in contract.frames:
+            tracks = frame.challenger.simulation_trace["courier_tracks"]
+            courier_ids = [track["courier_id"] for track in tracks]
+            self.assertEqual(
+                len(courier_ids),
+                len(set(courier_ids)),
+                f"{frame.id} should not render duplicate live tracks for the same rider",
+            )
+
     def test_workbench_payload_is_deterministic_and_json_serializable(self):
         controls = DaySimulationControls(courier_count=18, order_scale=0.38, weather="mixed", congestion_profile="weekday")
         first = build_dispatch_workbench_payload(run_full_day_comparison(seed="stable-workbench", controls=controls))
