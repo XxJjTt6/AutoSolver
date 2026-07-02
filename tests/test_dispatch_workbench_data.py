@@ -168,6 +168,46 @@ class DispatchWorkbenchDataTest(unittest.TestCase):
                 f"{frame.id} should not render duplicate live tracks for the same rider",
             )
 
+    def test_decision_times_never_precede_released_input_orders(self):
+        contract = run_full_day_comparison(
+            seed="frontend-shell",
+            controls=DaySimulationControls(courier_count=18, order_scale=0.38, weather="mixed", congestion_profile="weekday"),
+        )
+
+        payload = build_dispatch_workbench_payload(contract)
+        orders_by_id = {order["id"]: order for order in payload["entities"]["orders"]}
+
+        for decision in payload["decisions"]:
+            input_order_ids = decision["input_order_ids"]
+            if not input_order_ids:
+                continue
+
+            latest_input_release_s = max(orders_by_id[order_id]["created_at_s"] for order_id in input_order_ids)
+            self.assertGreaterEqual(
+                decision["trigger_time_s"],
+                latest_input_release_s,
+                f"{decision['id']} should not expose future input orders before release",
+            )
+            self.assertEqual(decision["trigger_time_label"], f"{decision['trigger_time_s'] // 3600:02.0f}:{decision['trigger_time_s'] % 3600 // 60:02.0f}")
+
+            for action in decision["final_actions"] + decision["abandoned_actions"]:
+                self.assertLessEqual(
+                    orders_by_id[action["order_id"]]["created_at_s"],
+                    decision["trigger_time_s"],
+                    f"{decision['id']} action should not reference an unreleased order",
+                )
+
+        decision_events = [event for event in payload["timeline"]["events"] if event["type"] == "decision_round"]
+        for event in decision_events:
+            if not event["order_ids"]:
+                continue
+            latest_event_order_s = max(orders_by_id[order_id]["created_at_s"] for order_id in event["order_ids"])
+            self.assertGreaterEqual(
+                event["time_s"],
+                latest_event_order_s,
+                f"{event['id']} should not appear before its order ids are released",
+            )
+
     def test_workbench_payload_is_deterministic_and_json_serializable(self):
         controls = DaySimulationControls(courier_count=18, order_scale=0.38, weather="mixed", congestion_profile="weekday")
         first = build_dispatch_workbench_payload(run_full_day_comparison(seed="stable-workbench", controls=controls))

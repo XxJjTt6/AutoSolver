@@ -531,8 +531,84 @@ class WebAgentDemoTest(unittest.TestCase):
 
         self.assertIn("function focusedMapOrderIds(routes = [], riders = [])", html)
         self.assertIn("focusOrderIds.has(item.id)", html)
-        self.assertIn('renderMapDots("order", orders.slice(0, 22), "dropoff", focusOrderIds)', html)
-        self.assertIn('renderLeafletMarkers(layerGroup, "order", orders.slice(0, 22), "dropoff", focusedMapOrderIds(routes, riders))', html)
+        self.assertIn('renderMapDots("order", orders.slice(0, 96), "dropoff", focusOrderIds, showAllOrderLabels)', html)
+        self.assertIn('renderLeafletMarkers(layerGroup, "order", orders.slice(0, 96), "dropoff", focusedMapOrderIds(routes, riders), shouldShowAllOrderLabels(frame, routes))', html)
+
+    def test_live_map_shows_all_order_labels_before_route_scoring(self):
+        from web_agent_demo.server import render_index
+
+        html = render_index()
+
+        self.assertIn("function shouldShowAllOrderLabels(frame, routes = [])", html)
+        self.assertIn("function hasCurrentMapRoute(routes = [])", html)
+        self.assertIn("const showAllOrderLabels = shouldShowAllOrderLabels(frame, routes);", html)
+        self.assertIn('return showAllOrderLabels || index < 4 || focusOrderIds.has(item.id);', html)
+        self.assertIn('stage.dataset.leafletMarkerCount = String(workbench.map.anchors.merchants.slice(0, 16).length + riders.slice(0, 14).length + orders.slice(0, 96).length);', html)
+
+    def test_live_map_uses_effective_frame_time_without_carryover_copy(self):
+        from web_agent_demo.server import render_index
+
+        html = render_index()
+
+        self.assertIn("function effectiveFrameTime(frame)", html)
+        self.assertIn("simTimeS < effectiveFrameTime(frames[0])", html)
+        self.assertIn("const frameTime = effectiveFrameTime(frame);", html)
+        self.assertIn("if (frameTime <= simTimeS) selected = frame;", html)
+        self.assertNotIn('map_order_state: "carryover"', html)
+        self.assertNotIn('data-kind="carryover-order"', html)
+        self.assertNotIn("上一阶段", html)
+        self.assertNotIn("未画线不代表消失或已送完", html)
+
+    def test_live_layout_keeps_controls_compact_and_map_vertically_resizable(self):
+        from web_agent_demo.server import render_index
+
+        html = render_index()
+
+        self.assertIn('grid-template-columns: max-content max-content minmax(74px, .22fr) minmax(124px, .34fr) minmax(118px, .30fr) minmax(560px, 1fr);', html)
+        self.assertIn('.live-control-dock .runtime-strip {', html)
+        self.assertIn('grid-template-columns: repeat(6, minmax(76px, 1fr));', html)
+        self.assertIn('.map-panel {', html)
+        self.assertIn('height: var(--live-map-panel-height, 574px);', html)
+        self.assertIn('data-resizable-map-panel="vertical"', html)
+        self.assertIn('id="live-map-resize-handle"', html)
+        self.assertIn('function bindLiveMapResizeHandle()', html)
+        self.assertIn('function setLiveMapPanelHeight(nextHeight)', html)
+        self.assertIn('function invalidateLiveMapSize()', html)
+        self.assertIn('liveLeafletMap.invalidateSize(false);', html)
+
+    def test_live_progress_supports_second_scrubbing_keyboard_and_half_speed(self):
+        from web_agent_demo.server import render_index
+
+        html = render_index()
+
+        self.assertIn("function clockPrecise(seconds)", html)
+        self.assertIn('setText("inference-clock", clockPrecise(inferenceState.currentTimeS));', html)
+        self.assertIn('progressControl.setAttribute("aria-valuetext", `${clockPrecise(inferenceState.currentTimeS)} / ${fmtNumber(progressPct, 1)}%`);', html)
+        self.assertIn('playbackPace: "demo",', html)
+        self.assertIn('const playbackPaceLabels = {', html)
+        self.assertIn('demo: "演示快进"', html)
+        self.assertIn('realtime: "逐秒播放"', html)
+        self.assertIn('id="playback-pace"', html)
+        self.assertIn('<option value="demo">演示快进</option><option value="realtime">逐秒播放</option>', html)
+        self.assertIn('function setInferencePlaybackPace(playbackPace) {', html)
+        self.assertIn('setText("inference-playback-pace-label", playbackPaceLabels[inferenceState.playbackPace]);', html)
+        self.assertIn('<option value="0.5">0.5x</option>', html)
+        self.assertIn('inferenceState.speed = [.5, 1, 2, 4].includes(speed) ? speed : 1;', html)
+        self.assertIn('progressControl.addEventListener("pointerdown", handleProgressPointerDown);', html)
+        self.assertIn('progressControl.addEventListener("pointermove", handleProgressPointerMove);', html)
+        self.assertIn('progressControl.setPointerCapture(event.pointerId);', html)
+        self.assertIn('const stepS = event.shiftKey ? 60 : 1;', html)
+        self.assertIn('const snappedTimeS = Math.round(Number(nextTimeS || 0));', html)
+        self.assertIn('tickMs: 1000,', html)
+        self.assertIn('function playbackStepSeconds() {', html)
+        self.assertIn('return inferenceState.playbackPace === "realtime" ? realtimePlaybackStepSeconds() : demoPlaybackStepSeconds();', html)
+        self.assertIn('function realtimePlaybackStepSeconds() {', html)
+        self.assertIn('return Math.max(0, inferenceState.tickMs / 1000 * inferenceState.speed);', html)
+        self.assertIn('function demoPlaybackStepSeconds() {', html)
+        self.assertIn('return Math.max(60, inferenceState.tickMs / 1000 * 900 * inferenceState.speed);', html)
+        self.assertIn('const simulatedStepS = playbackStepSeconds();', html)
+        self.assertNotIn('elapsedMs / 1000 * inferenceState.speed', html)
+        self.assertNotIn('Math.max(60, elapsedMs / 1000 * 900 * inferenceState.speed)', html)
 
     def test_live_map_limits_order_points_to_current_route_frame(self):
         from web_agent_demo.server import render_index
@@ -542,7 +618,10 @@ class WebAgentDemoTest(unittest.TestCase):
         self.assertIn('const currentRouteOrderIds = new Set(routeRowsForFrame(frame, "ours")', html)
         self.assertIn('if (currentRouteOrderIds.size || activeIds.size) {', html)
         self.assertIn('for (const orderId of currentRouteOrderIds) activeIds.add(orderId);', html)
-        self.assertIn('const recent = workbench.map.anchors.orders.filter', html)
+        self.assertIn('function releasedOrderIdsForMapContext()', html)
+        self.assertIn('function currentMapDemandPhaseStartS()', html)
+        self.assertIn('order.created_at_s >= currentMapDemandPhaseStartS()', html)
+        self.assertNotIn('order.created_at_s >= inferenceState.currentTimeS - 1800', html)
 
     def test_live_map_deduplicates_rider_tracks_and_labels_assignments(self):
         from web_agent_demo.server import render_index

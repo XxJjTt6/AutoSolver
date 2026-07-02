@@ -2144,6 +2144,10 @@ def render_day_replay_index() -> str:
       background: rgba(183,121,31,.5);
       opacity: .55;
     }
+    /* 图例上三种订单状态点：待派单 / 执行中 / 已完成，颜色与订单点着色语义一致。 */
+    .legend-dot[data-status="pending"] { background: #fff; border: 2px solid var(--amber); }
+    .legend-dot[data-status="active"] { background: var(--amber); box-shadow: 0 0 0 3px rgba(183,121,31,.16); }
+    .legend-dot[data-status="settled"] { background: rgba(183,121,31,.5); opacity: .55; }
   </style>
 </head>
 <body data-shell="dispatch-workbench-shell" data-visual-system="enterprise-dispatch-v2" data-visual-polish="chinese-enterprise-workbench-v3" data-density="high-information" data-secret-handling="env-only-redacted">
@@ -2244,6 +2248,99 @@ def render_day_replay_index() -> str:
     };
     let selectedDecisionId = workbench.decisions[0]?.id || "";
     const orderIndex = Object.fromEntries(workbench.entities.orders.map((order) => [order.id, order]));
+    // ---- 订单生命周期模型（时间真值，前后端一致）----------------------------
+    // 目标：地图上的每一个元素都严格由「真实时间戳」决定，绝不提前展示未来订单。
+    // 每个订单在任意推演秒 T 下只有四种状态：
+    //   unreleased 未释放 -> waiting 已释放待派单 -> dispatched 已派单执行中 -> completed 已完成
+    // 关键时间点全部取自后端 payload：
+    //   created_at_s  订单真实创建时间（释放时间）
+    //   assign_at_s   派单时间 = 该订单所属决策轮的 trigger_time_s（真实触发时间）
+    //   complete_at_s 完成时间 = assign_at_s + 路线 eta（真实预计送达）
+    const ORDER_FADE_S = 300;      // 完成后仍在地图淡出保留的时长（便于追溯），之后移除
+    const DEFAULT_SERVICE_S = 1500; // 未进入任何决策轮的订单（46 单）的估算服务时长
+    const riderAliasBucket = (workbench.map.aliases && workbench.map.aliases.riders) || {};
+    function riderLabelForId(courierId) {
+      if (!courierId) return "";
+      return riderAliasBucket[courierId] || courierId;
+    }
+    const decisionByOrderId = (() => {
+      const map = {};
+      for (const decision of workbench.decisions || []) {
+        for (const action of decision.final_actions || []) {
+          if (action.order_id && !(action.order_id in map)) map[action.order_id] = { decision, action };
+        }
+      }
+      return map;
+    })();
+    const oursRouteByOrderId = (() => {
+      const map = {};
+      for (const route of workbench.map.routes || []) {
+        if (route.lane === "ours" && route.order_id && !(route.order_id in map)) map[route.order_id] = route;
+      }
+      return map;
+    })();
+    const orderLifecycle = (() => {
+      const life = {};
+      for (const order of workbench.entities.orders || []) {
+        const created = Number(order.created_at_s);
+        const dispatch = decisionByOrderId[order.id];
+        const route = oursRouteByOrderId[order.id];
+        let assignAt = null;
+        let courierId = "";
+        let courierLabel = "";
+        let completeAt;
+        let dispatched = false;
+        if (dispatch) {
+          dispatched = true;
+          assignAt = Number(dispatch.decision.trigger_time_s);
+          courierId = dispatch.action.courier_id || (order.our_result && order.our_result.courier_id) || "";
+          courierLabel = dispatch.action.courier_label || riderLabelForId(courierId);
+          let etaS = route && Number.isFinite(Number(route.eta_s)) ? Number(route.eta_s) : NaN;
+          if (!Number.isFinite(etaS) && order.our_result && Number.isFinite(Number(order.our_result.eta_min))) {
+            etaS = Number(order.our_result.eta_min) * 60;
+          }
+          if (!Number.isFinite(etaS)) etaS = 600;
+          completeAt = assignAt + Math.max(120, etaS);
+        } else {
+          // 已释放但未进入任何决策轮：按估算服务时长自然淡出，不虚构骑手归属。
+          completeAt = created + DEFAULT_SERVICE_S;
+        }
+        life[order.id] = {
+          id: order.id,
+          map_label: order.map_label || "",
+          created_at_s: created,
+          assign_at_s: assignAt,
+          courier_id: courierId,
+          courier_label: courierLabel,
+          complete_at_s: completeAt,
+          dispatched,
+          route_id: route ? route.id : ""
+        };
+      }
+      return life;
+    })();
+    function orderStatusAt(orderId, simTimeS = inferenceState.currentTimeS) {
+      const life = orderLifecycle[orderId];
+      if (!life || !Number.isFinite(life.created_at_s)) return "unknown";
+      if (simTimeS < life.created_at_s) return "unreleased";
+      if (life.dispatched) {
+        if (simTimeS < life.assign_at_s) return "waiting";
+        if (simTimeS < life.complete_at_s) return "dispatched";
+        return "completed";
+      }
+      return simTimeS < life.complete_at_s ? "waiting" : "completed";
+    }
+    const orderStatusLabels = {
+      unreleased: "未释放",
+      waiting: "已释放·待派单",
+      dispatched: "已派单·执行中",
+      completed: "已完成",
+      unknown: "未知"
+    };
+    function orderStatusLabel(status) {
+      return orderStatusLabels[status] || orderStatusLabels.unknown;
+    }
+    // ------------------------------------------------------------------------
     const orderFilterState = {
       timeBand: "all",
       area: "all",
@@ -2840,128 +2937,157 @@ def render_day_replay_index() -> str:
       };
     }
 
-    function previousFrameFor(frame) {
-      const frames = contract.frames || [];
-      const index = frames.findIndex((item) => item.id === frame.id);
-      return index > 0 ? frames[index - 1] : null;
+    const MAP_ROUTE_CAP = 8;
+    function baselineRouteByOrderId(orderId) {
+      return (workbench.map.routes || []).find((route) => route.lane === "baseline" && route.order_id === orderId) || null;
     }
-
-    function routeRowsForFrame(frame, lane) {
-      const laneKey = lane === "baseline" ? "baseline" : "ours";
-      return workbench.map.routes.filter((route) => route.frame_id === frame.id && route.lane === laneKey);
+    function liveDispatchedRoutes(simTimeS = inferenceState.currentTimeS) {
+      const rows = [];
+      for (const order of workbench.map.anchors.orders) {
+        if (orderStatusAt(order.id, simTimeS) !== "dispatched") continue;
+        const route = oursRouteByOrderId[order.id];
+        if (route) rows.push(route);
+      }
+      // 同级按派单时间排序，保留最近 MAP_ROUTE_CAP 条正在执行的路线。
+      rows.sort((a, b) => (orderLifecycle[a.order_id]?.assign_at_s || 0) - (orderLifecycle[b.order_id]?.assign_at_s || 0));
+      return rows.slice(-MAP_ROUTE_CAP);
     }
-
-    function assignmentCourierMap(frame, lane) {
-      const algorithmFrame = lane === "baseline" ? frame.baseline : frame.challenger;
-      return Object.fromEntries((algorithmFrame.assignments || []).map((assignment) => [assignment.order_id, assignment.courier_id]));
-    }
-
-    function differentialOrderIds(frame) {
-      const baseline = assignmentCourierMap(frame, "baseline");
-      const ours = assignmentCourierMap(frame, "ours");
-      const highlighted = new Set(frame.highlighted_order_ids || []);
-      const diff = Object.keys(ours).filter((orderId) => baseline[orderId] && baseline[orderId] !== ours[orderId]);
-      return new Set([...diff, ...highlighted].slice(0, 8));
-    }
-
     function mapRouteRows(frame) {
-      const previous = previousFrameFor(frame);
-      const previousRoutes = previous ? routeRowsForFrame(previous, "ours").slice(0, 2).map((route) => ({...route, renderLane: "previous"})) : [];
-      const ours = routeRowsForFrame(frame, "ours");
-      const baseline = routeRowsForFrame(frame, "baseline");
-      const diffIds = differentialOrderIds(frame);
-      if (inferenceState.mode === "overlay") {
-        const diffOurs = ours.filter((route) => diffIds.has(route.order_id)).slice(0, 5).map((route) => ({...route, renderLane: "difference"}));
-        const diffBaseline = baseline.filter((route) => diffIds.has(route.order_id)).slice(0, 3).map((route) => ({...route, renderLane: "baseline"}));
-        return [...previousRoutes, ...(diffOurs.length ? diffOurs : ours.slice(0, 4).map((route) => ({...route, renderLane: "ours"}))), ...diffBaseline];
+      const ours = liveDispatchedRoutes();
+      if (inferenceState.mode === "current") {
+        return ours.map((route) => ({...route, renderLane: "ours"}));
       }
-      if (inferenceState.mode === "compare") {
-        const diffBaseline = baseline.filter((route) => diffIds.has(route.order_id)).slice(0, 3).map((route) => ({...route, renderLane: "baseline"}));
-        return [...previousRoutes, ...ours.slice(0, 5).map((route) => ({...route, renderLane: "ours"})), ...diffBaseline];
-      }
-      return [...previousRoutes, ...ours.slice(0, 6).map((route) => ({...route, renderLane: "ours"}))];
-    }
-
-    // 订单点一旦出现就保留在地图上，并按状态着色（在途 / 待派 / 已处理），不再「闪一下就消失」。
-    function ordersForMap(frame) {
-      const now = inferenceState.currentTimeS;
-      const activeIds = new Set([...(frame.challenger.active_order_ids || []), ...(frame.highlighted_order_ids || [])]);
-      for (const route of routeRowsForFrame(frame, "ours")) {
-        if (route.order_id) activeIds.add(route.order_id);
-      }
-      const created = workbench.map.anchors.orders.filter((order) => order.created_at_s <= now);
-      // 保留最近 64 个已出现订单，再补回所有活跃单（即使较早），既不让点消失、也撑满高潮期地图。
-      const chosen = created.slice(-64);
-      const chosenIds = new Set(chosen.map((order) => order.id));
-      for (const order of created) {
-        if (activeIds.has(order.id) && !chosenIds.has(order.id)) {
-          chosen.push(order);
-          chosenIds.add(order.id);
+      // 对比 / 叠加模式：为当前执行中的订单补充基线路线，并标出「派给不同骑手」的差异。
+      const rows = [];
+      for (const route of ours) {
+        const baseline = baselineRouteByOrderId(route.order_id);
+        const isDiff = baseline && baseline.courier_id && baseline.courier_id !== route.courier_id;
+        rows.push({...route, renderLane: isDiff ? "difference" : "ours"});
+        if (baseline && (inferenceState.mode === "compare" || isDiff)) {
+          rows.push({...baseline, renderLane: "baseline"});
         }
       }
-      const statusRank = { active: 0, pending: 1, settled: 2 };
-      return chosen
-        .map((order) => {
-          let status = "settled";
-          if (activeIds.has(order.id)) status = "active";
-          else if (order.created_at_s >= now - 900) status = "pending";
-          return { ...order, status };
-        })
-        // 在途/待派单优先，其后按时间倒序补最近的已处理单：保证渲染截断后仍能看到关键单 + 一层背景单。
-        .sort((a, b) => (statusRank[a.status] - statusRank[b.status]) || (b.created_at_s - a.created_at_s));
+      return rows;
+    }
+
+    // 严格按时间真值挑选地图订单点：
+    //   - 只显示 created_at_s <= 当前秒 的订单（绝不提前展示未来订单）；
+    //   - 跨时段保留（早餐订单不会在 10:00 突然消失，而是按各自生命周期推进）；
+    //   - 已完成订单淡出保留 ORDER_FADE_S 后移除，且移除有明确语义（已完成）；
+    //   - 每个点带上 status（映射自生命周期：waiting->pending / dispatched->active / completed->settled），供着色和图例解释。
+    const MAP_ORDER_CAP = 72;
+    const ORDER_STATUS_FROM_LIFECYCLE = { waiting: "pending", dispatched: "active", completed: "settled" };
+    const ORDER_STATE_RANK = { active: 0, pending: 1, settled: 2 };
+    function ordersForMap(frame) {
+      const t = inferenceState.currentTimeS;
+      const visible = [];
+      for (const order of workbench.map.anchors.orders) {
+        const lifecycleStatus = orderStatusAt(order.id, t);
+        if (lifecycleStatus === "unreleased" || lifecycleStatus === "unknown") continue;
+        if (lifecycleStatus === "completed") {
+          const life = orderLifecycle[order.id];
+          if (life && t > life.complete_at_s + ORDER_FADE_S) continue; // 已完成并超过淡出窗口 -> 从地图移除
+        }
+        visible.push({ ...order, status: ORDER_STATUS_FROM_LIFECYCLE[lifecycleStatus] });
+      }
+      if (visible.length <= MAP_ORDER_CAP) {
+        return visible.sort((a, b) => a.created_at_s - b.created_at_s);
+      }
+      // 超过上限时优先保留「执行中 > 待派单 > 已完成」，同级取最新，避免地图过载。
+      const trimmed = visible
+        .slice()
+        .sort((a, b) => (ORDER_STATE_RANK[a.status] - ORDER_STATE_RANK[b.status]) || (b.created_at_s - a.created_at_s))
+        .slice(0, MAP_ORDER_CAP);
+      return trimmed.sort((a, b) => a.created_at_s - b.created_at_s);
     }
 
     function riderPositionsForFrame(frame) {
-      const moving = movingRiderPositions(frame);
-      if (moving.length) return moving;
-      return (frame.challenger.courier_positions || []).slice(0, 18).map((snapshot) => ({
+      const moving = deriveMovingRiders(inferenceState.currentTimeS);
+      if (moving.length) return dedupeRiderPositions(moving);
+      const snapshots = (frame.challenger.courier_positions || []).slice(0, 18).map((snapshot) => ({
         id: snapshot.courier_id,
-        label: snapshot.label || snapshot.courier_id,
+        label: riderLabelForId(snapshot.courier_id),
+        map_label: riderLabelForId(snapshot.courier_id),
         position: snapshot.position,
         motion: "snapshot",
         phase: snapshot.status || "available"
       }));
+      return dedupeRiderPositions(snapshots);
     }
 
-    function movingRiderPositions(frame) {
-      const tracks = frame.challenger?.simulation_trace?.courier_tracks || [];
-      return tracks.slice(0, 18).map((track) => {
-        const sample = trackPositionAt(track, inferenceState.currentTimeS);
-        return sample ? {
-          id: track.courier_id,
-          label: track.courier_id,
-          order_id: track.order_id,
-          position: sample.position,
-          motion: "moving",
-          phase: sample.phase,
-          progress: sample.progress
-        } : null;
-      }).filter(Boolean);
-    }
-
-    function trackPositionAt(track, simTimeS) {
-      const ticks = track.ticks || [];
-      if (!ticks.length) return null;
-      if (simTimeS <= ticks[0].absolute_s) return ticks[0];
-      for (let index = 1; index < ticks.length; index += 1) {
-        const left = ticks[index - 1];
-        const right = ticks[index];
-        if (simTimeS <= right.absolute_s) {
-          const span = Math.max(1, right.absolute_s - left.absolute_s);
-          const ratio = clamp((simTimeS - left.absolute_s) / span, 0, 1);
-          return {
-            phase: right.phase,
-            progress: left.progress + (right.progress - left.progress) * ratio,
-            position: {
-              lat: left.position.lat + (right.position.lat - left.position.lat) * ratio,
-              lng: left.position.lng + (right.position.lng - left.position.lng) * ratio,
-              screen_x: left.position.screen_x + (right.position.screen_x - left.position.screen_x) * ratio,
-              screen_y: left.position.screen_y + (right.position.screen_y - left.position.screen_y) * ratio
-            }
-          };
-        }
+    // 同一骑手任一时刻只保留一个当前位置，杜绝地图上出现两个同名骑手（“分身”）。
+    function dedupeRiderPositions(riders = []) {
+      const seen = new Map();
+      for (const rider of riders) {
+        if (!seen.has(rider.id)) seen.set(rider.id, rider);
       }
-      return ticks[ticks.length - 1];
+      return Array.from(seen.values());
+    }
+
+    // 移动骑手完全由「当前正在执行的派单路线 + 订单生命周期进度」推导，
+    // 与后端每 15 分钟一帧、且只覆盖单个时段的 courier_tracks 解耦，从而保证：
+    //   1) 长配送（ETA 跨多个时段帧）全程都有骑手和执行进度，不会中途消失；
+    //   2) 骑手在派单时刻从路线起点出发（progress=0），绝不“凭空出现在半路”；
+    //   3) 骑手只承接「已派单·执行中」的订单，与订单点/路线/状态文案三处严格一致。
+    function deriveMovingRiders(simTimeS) {
+      const byCourier = new Map();
+      for (const route of liveDispatchedRoutes(simTimeS)) {
+        const life = orderLifecycle[route.order_id];
+        if (!life || !life.dispatched) continue;
+        const list = byCourier.get(route.courier_id) || [];
+        list.push({ route, life });
+        byCourier.set(route.courier_id, list);
+      }
+      const riders = [];
+      for (const [courierId, items] of byCourier) {
+        items.sort((a, b) => (a.life.assign_at_s || 0) - (b.life.assign_at_s || 0));
+        const primary = items[0];
+        const span = Math.max(1, primary.life.complete_at_s - primary.life.assign_at_s);
+        const progress = clamp((simTimeS - primary.life.assign_at_s) / span, 0, 1);
+        const position = pointAlongPolyline(primary.route.polyline, progress);
+        if (!position) continue;
+        const taskOrderIds = uniqueIds(items.map((item) => item.route.order_id));
+        riders.push({
+          id: courierId,
+          label: riderLabelForId(courierId),
+          map_label: riderLabelForId(courierId),
+          order_id: primary.route.order_id,
+          task_order_ids: taskOrderIds,
+          task_order_count: taskOrderIds.length,
+          position,
+          motion: "moving",
+          phase: "delivering",
+          progress
+        });
+      }
+      return riders;
+    }
+
+    // 按进度沿折线取点（后端折线为粗粒度 3 点路径，分段等分近似即可）。
+    function pointAlongPolyline(polyline = [], progress = 0) {
+      const points = (polyline || []).filter((point) => point && Number.isFinite(Number(point.screen_x)));
+      if (!points.length) return null;
+      if (points.length === 1) return points[0];
+      const clamped = clamp(Number(progress) || 0, 0, 1);
+      const segs = points.length - 1;
+      const scaled = clamped * segs;
+      const index = Math.min(segs - 1, Math.floor(scaled));
+      const ratio = scaled - index;
+      return interpolateMapPoint(points[index], points[index + 1], ratio);
+    }
+
+    function interpolateMapPoint(start, end, ratio) {
+      const mix = (left, right) => Number(left) + (Number(right) - Number(left)) * ratio;
+      return {
+        lat: mix(start.lat, end.lat),
+        lng: mix(start.lng, end.lng),
+        screen_x: mix(start.screen_x, end.screen_x),
+        screen_y: mix(start.screen_y, end.screen_y)
+      };
+    }
+
+    function uniqueIds(ids = []) {
+      return [...new Set(ids.filter(Boolean))];
     }
 
     function routeFromHash() {
@@ -3188,6 +3314,8 @@ def render_day_replay_index() -> str:
       if (cumulativeMetrics) cumulativeMetrics.innerHTML = renderLiveCumulativeMetrics(currentScore);
       const summary = document.getElementById("live-round-summary");
       if (summary) summary.innerHTML = renderRoundSummary(currentDecision, true);
+      const dispatchList = document.getElementById("live-dispatch-list");
+      if (dispatchList) dispatchList.innerHTML = renderLiveDispatchList();
     }
 
     function setText(id, value) {
@@ -3366,6 +3494,12 @@ def render_day_replay_index() -> str:
                 <div class="card-head"><h3>当前决策摘要</h3><span id="round-summary-time">${escapeHtml(currentDecision.trigger_time_label)}</span></div>
                 <div id="live-round-summary" class="card-body compact-list">
                   ${renderRoundSummary(currentDecision, true)}
+                </div>
+              </div>
+              <div class="card">
+                <div class="card-head"><h3>地图执行中订单</h3><span id="dispatch-list-caption">与地图一一对应</span></div>
+                <div id="live-dispatch-list" class="card-body compact-list">
+                  ${renderLiveDispatchList()}
                 </div>
               </div>
               <div class="card live-run-panel">
@@ -3635,22 +3769,87 @@ def render_day_replay_index() -> str:
       return polyline;
     }
 
+    function orderStateCounts(orders = []) {
+      const counts = { pending: 0, active: 0, settled: 0 };
+      for (const order of orders) {
+        const state = order.status || "pending";
+        if (state in counts) counts[state] += 1;
+      }
+      return counts;
+    }
+
+    function orderStateSummaryText(orders = []) {
+      const counts = orderStateCounts(orders);
+      return `待派单 ${counts.pending} · 执行中 ${counts.active} · 已完成 ${counts.settled}`;
+    }
+
+    // 状态转移解释：说明「上一状态 -> 当前状态」是什么触发的，避免画面突变没有原因。
+    function latestTransitionReason(simTimeS = inferenceState.currentTimeS) {
+      const events = releasedEvents(simTimeS);
+      const last = events.length ? events[events.length - 1] : null;
+      if (!last) return "时间线尚未释放事件。";
+      const gap = Math.max(0, simTimeS - Number(last.time_s || simTimeS));
+      const when = `${clock(Number(last.time_s || simTimeS))}`;
+      const typeText = {
+        order_entered: "新订单释放进入订单池",
+        decision_round: "规划轮触发，重新比较基线与我方并派单",
+        score_update: "累计优势指标刷新",
+        memory_writeback: "记忆回写：本轮结果沉淀到记忆库",
+        memory_recall: "记忆召回：调用历史经验辅助决策",
+        future_policy_shift: "策略切换：进入新的供需时段"
+      }[last.type] || "推演状态更新";
+      const within = gap <= 90 ? "（刚刚）" : "";
+      return `${when} ${typeText}${within}。`;
+    }
+
     function renderMapActionStatus(frame, routes = [], riders = [], orders = []) {
       if (!inferenceState.started) {
         return `<strong>等待开始推理</strong><span>点击开始后，订单、骑手、路线和优势指标会按全天时间自动推进。</span>`;
       }
+      const reason = latestTransitionReason();
+      const stateText = orderStateSummaryText(orders);
       const moving = activeMapRider(riders);
       if (moving) {
         const movingAction = { order_id: moving.order_id, courier_id: moving.id };
         const orderLabel = moving.order_id ? actionDisplayLabel("order", movingAction) : "当前订单";
         const riderLabel = actionDisplayLabel("rider", movingAction);
-        return `<strong>${escapeHtml(riderLabel)} 正在执行 ${escapeHtml(orderLabel)}</strong><span>路线进度 ${fmtNumber((moving.progress || 0) * 100, 0)}%，地图只突出我方动作和必要差异。</span>`;
+        const extraOrders = orderLabelsForIds(moving.task_order_ids || []).filter((label) => label !== orderLabel);
+        const taskChain = extraOrders.length ? `，同一骑手本轮还承接 ${extraOrders.join("、")}` : "";
+        return `<strong>${escapeHtml(riderLabel)} 正在执行 ${escapeHtml(orderLabel)}</strong><span>路线进度 ${fmtNumber((moving.progress || 0) * 100, 0)}%${escapeHtml(taskChain)}。当前地图：${escapeHtml(stateText)}。变化原因：${escapeHtml(reason)}</span>`;
       }
       const route = routes.find((item) => (item.renderLane || item.lane) === "ours") || routes[0];
       if (route) {
-        return `<strong>本轮路线已接管</strong><span>${escapeHtml(actionPairLabel(route))}，等待下一次路线重算。</span>`;
+        return `<strong>本轮路线已接管：${escapeHtml(actionPairLabel(route))}</strong><span>当前地图：${escapeHtml(stateText)}。变化原因：${escapeHtml(reason)}</span>`;
       }
-      return `<strong>等待首轮路线</strong><span>已释放 ${orders.length} 个地图订单点，系统正在等待可评分的派单窗口。</span>`;
+      return `<strong>等待首轮路线</strong><span>已释放 ${orders.length} 个订单点（${escapeHtml(stateText)}）；只显示已真实释放的订单，尚未到派单决策时刻。变化原因：${escapeHtml(reason)}</span>`;
+    }
+
+    // 右侧「地图执行中订单」列表：数据源与地图完全一致（liveDispatchedRoutes + orderStatusAt），
+    // 确保凡是地图上高亮/画线的执行中订单，都能在右侧逐条找到「订单 → 骑手 / 状态」的解释（§3.8）。
+    function renderLiveDispatchList() {
+      if (!inferenceState.started) {
+        return `<div class="list-item"><strong>尚未开始</strong><p>开始推理后，这里会列出地图上每一条执行中派单（订单 → 骑手），与地图严格一一对应。</p></div>`;
+      }
+      const t = inferenceState.currentTimeS;
+      const dispatched = liveDispatchedRoutes(t);
+      const anchors = workbench.map.anchors.orders;
+      const waitingCount = anchors.filter((order) => orderStatusAt(order.id, t) === "waiting").length;
+      if (!dispatched.length) {
+        return `<div class="list-item"><strong>暂无执行中派单</strong><p>当前有 ${waitingCount} 个已释放订单在等待下一次派单决策；地图上的订单点均为「待派单」状态。</p></div>`;
+      }
+      const rows = dispatched
+        .slice()
+        .sort((a, b) => (orderLifecycle[a.order_id]?.assign_at_s || 0) - (orderLifecycle[b.order_id]?.assign_at_s || 0))
+        .map((route) => {
+          const life = orderLifecycle[route.order_id] || {};
+          const remainingMin = Math.max(0, ((life.complete_at_s || t) - t) / 60);
+          const orderLabel = actionDisplayLabel("order", route);
+          const riderLabel = actionDisplayLabel("rider", route);
+          return `<div class="list-item" data-dispatch-order="${escapeHtml(orderLabel)}"><strong>${escapeHtml(orderLabel)} → ${escapeHtml(riderLabel)}</strong><p>已派单·执行中 / 预计还需 ${fmtNumber(remainingMin, 1)} 分钟送达</p></div>`;
+        })
+        .join("");
+      const tail = waitingCount ? `<div class="list-item"><strong>另有 ${waitingCount} 个待派单</strong><p>已释放、等待下一次派单决策，地图上以「待派单」样式显示。</p></div>` : "";
+      return rows + tail;
     }
 
     function renderHotspots() {
@@ -3674,21 +3873,30 @@ def render_day_replay_index() -> str:
     }
 
     function renderMapLegend() {
-      const routeItems = [
-        ["ours", "我方路线"],
-        ["previous", "旧路线淡出"],
-        ["baseline", "基线差异"],
-        ["difference", "叠加差异"]
-      ];
       const entityItems = [
         ["rider", "骑手"],
         ["merchant", "商家"],
-        ["order", "订单"],
         ["hotspot", "热点"]
       ];
+      // 订单点按生命周期着色，图例逐一解释，避免“点消失/变色看不懂”。
+      const orderStateItems = [
+        ["pending", "订单·待派单"],
+        ["active", "订单·执行中"],
+        ["settled", "订单·已完成"]
+      ];
+      // 线条语义与实际绘制严格一致：默认只画我方规划/执行；对比模式才出现基线与差异线。
+      const routeItems = [
+        ["ours", "我方规划/执行路线"],
+        ["active-progress", "执行进度"]
+      ];
+      if (inferenceState.mode !== "current") {
+        routeItems.push(["baseline", "基线路线"]);
+        routeItems.push(["difference", "差异路线（派给不同骑手）"]);
+      }
       return `
         <div class="map-legend">
           ${entityItems.map(([kind, label]) => `<span class="legend-item"><i class="legend-dot" data-kind="${escapeHtml(kind)}"></i>${escapeHtml(label)}</span>`).join("")}
+          ${orderStateItems.map(([state, label]) => `<span class="legend-item"><i class="legend-dot" data-kind="order" data-status="${escapeHtml(state)}"></i>${escapeHtml(label)}</span>`).join("")}
           ${routeItems.map(([lane, label]) => `<span class="legend-item"><i class="legend-swatch" data-lane="${escapeHtml(lane)}"></i>${escapeHtml(label)}</span>`).join("")}
         </div>
       `;
@@ -3720,6 +3928,10 @@ def render_day_replay_index() -> str:
       return `${actionDisplayLabel("order", item)} 派给 ${actionDisplayLabel("rider", item)}`;
     }
 
+    function orderLabelsForIds(orderIds = []) {
+      return uniqueIds(orderIds).map((orderId) => actionDisplayLabel("order", { order_id: orderId }));
+    }
+
     function focusedMapOrderIds(routes = [], riders = []) {
       const ids = new Set();
       for (const route of routes) {
@@ -3735,7 +3947,9 @@ def render_day_replay_index() -> str:
     function shouldShowMapLabel(kind, item, index, label, focusOrderIds = new Set()) {
       if (kind === "rider") return true;
       if (kind !== "order") return false;
-      return index < 4 || focusOrderIds.has(item.id);
+      // 待派单 / 执行中的订单必须显示编号；已完成的淡出点默认不显示，除非被聚焦。
+      if (item.status === "settled") return focusOrderIds.has(item.id);
+      return true;
     }
 
     function mapEntityTitle(kind, label, item = {}) {
@@ -3746,10 +3960,18 @@ def render_day_replay_index() -> str:
         hotspot: "热点"
       }[kind] || "实体";
       const details = [];
-      const orderStatusLabels = { active: "在途", pending: "待派", settled: "已处理" };
-      if (kind === "order" && orderStatusLabels[item.status]) details.push(orderStatusLabels[item.status]);
+      // 仅对实时地图上的订单点补充生命周期信息（这些对象带有 status），
+      // 不影响其他页面（订单页/骑手页小地图）复用同一 tooltip 函数时的展示。
+      const orderStatusText = { active: "已派单·执行中", pending: "已释放·待派单", settled: "已完成" };
+      if (kind === "order" && orderStatusText[item.status]) {
+        const life = orderLifecycle[item.id];
+        details.push(`状态:${orderStatusText[item.status]}`);
+        if (life && life.created_at_s != null) details.push(`释放:${clock(life.created_at_s)}`);
+        if (life && life.dispatched && life.courier_label) details.push(`派给:${life.courier_label}`);
+      }
       if (item.risk_level) details.push(`风险:${displayRisk(item.risk_level)}`);
       if (item.phase) details.push(displayRiderState(item.phase));
+      if (kind === "rider" && item.task_order_ids?.length > 1) details.push(`任务链:${orderLabelsForIds(item.task_order_ids).join(" + ")}`);
       return `${kindLabel} ${label}${details.length ? ` / ${details.join(" / ")}` : ""}`;
     }
 

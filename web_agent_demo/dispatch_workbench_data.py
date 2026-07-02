@@ -114,8 +114,8 @@ def build_dispatch_workbench_payload(contract: DaySimulationContract) -> dict[st
         "metrics": {
             "baseline_algorithm": contract.baseline_run.algorithm_id,
             "challenger_algorithm": contract.challenger_run.algorithm_id,
-            "final": _scorecard_payload(final_frame),
-            "series": [_scorecard_payload(frame) for frame in contract.frames],
+            "final": _scorecard_payload(final_frame, orders_by_id),
+            "series": [_scorecard_payload(frame, orders_by_id) for frame in contract.frames],
         },
         "decisions": decisions,
         "memory": {
@@ -243,6 +243,7 @@ def _decision_payload(
     map_aliases: dict[str, dict[str, str]],
 ) -> dict[str, Any]:
     input_order_ids = list(frame.challenger.active_order_ids)
+    trigger_time_s = _frame_effective_time_s(frame, orders_by_id)
     candidate_courier_ids = sorted(
         {
             assignment.courier_id
@@ -295,8 +296,8 @@ def _decision_payload(
     return {
         "id": f"D-{frame.id}",
         "frame_id": frame.id,
-        "trigger_time_s": frame.sim_time_s,
-        "trigger_time_label": _clock(frame.sim_time_s),
+        "trigger_time_s": trigger_time_s,
+        "trigger_time_label": _clock(trigger_time_s),
         "trigger_reason": _trigger_reason(time_slice),
         "input_order_ids": input_order_ids,
         "input_orders": [_order_reference(orders_by_id[order_id]) for order_id in input_order_ids if order_id in orders_by_id],
@@ -674,16 +675,17 @@ def _time_slice_payload(time_slice: Any) -> dict[str, Any]:
     }
 
 
-def _scorecard_payload(frame: Any) -> dict[str, Any]:
+def _scorecard_payload(frame: Any, orders_by_id: dict[str, Any]) -> dict[str, Any]:
     baseline = frame.baseline.metrics
     challenger = frame.challenger.metrics
     distance_saved_m = round(baseline.total_distance_m - challenger.total_distance_m, 3)
     revenue_delta_yuan = round(challenger.gross_revenue_yuan - baseline.gross_revenue_yuan, 3)
     profit_delta_yuan = round(revenue_delta_yuan + frame.delta.cost_saved_yuan, 3)
+    time_s = _frame_effective_time_s(frame, orders_by_id)
     return {
         "frame_id": frame.id,
-        "time_s": frame.sim_time_s,
-        "time_label": _clock(frame.sim_time_s),
+        "time_s": time_s,
+        "time_label": _clock(time_s),
         "baseline": _metrics_payload(baseline),
         "ours": _metrics_payload(challenger),
         "deltas": {
@@ -735,11 +737,12 @@ def _timeline_events(contract: DaySimulationContract, orders_by_id: dict[str, An
             }
         )
     for frame in contract.frames:
+        frame_time_s = _frame_effective_time_s(frame, orders_by_id)
         events.append(
             {
                 "id": f"EV-decision-{frame.id}",
-                "time_s": frame.sim_time_s,
-                "time_label": _clock(frame.sim_time_s),
+                "time_s": frame_time_s,
+                "time_label": _clock(frame_time_s),
                 "type": "decision_round",
                 "decision_id": f"D-{frame.id}",
                 "order_ids": list(frame.challenger.active_order_ids),
@@ -750,8 +753,8 @@ def _timeline_events(contract: DaySimulationContract, orders_by_id: dict[str, An
         events.append(
             {
                 "id": f"EV-score-{frame.id}",
-                "time_s": frame.sim_time_s + 1,
-                "time_label": _clock(frame.sim_time_s + 1),
+                "time_s": frame_time_s + 1,
+                "time_label": _clock(frame_time_s + 1),
                 "type": "score_update",
                 "frame_id": frame.id,
                 "summary": frame.delta.headline,
@@ -762,8 +765,8 @@ def _timeline_events(contract: DaySimulationContract, orders_by_id: dict[str, An
             events.append(
                 {
                     "id": f"EV-memory-{event_id}",
-                    "time_s": frame.sim_time_s + 2,
-                    "time_label": _clock(frame.sim_time_s + 2),
+                    "time_s": frame_time_s + 2,
+                    "time_label": _clock(frame_time_s + 2),
                     "type": memory_event.event_type,
                     "memory_id": event_id,
                     "summary": memory_event.learned_rule,
@@ -775,6 +778,21 @@ def _timeline_events(contract: DaySimulationContract, orders_by_id: dict[str, An
         if event.get("order_id") in orders_by_id:
             event["business_area"] = orders_by_id[str(event["order_id"])].demand_phase
     return events
+
+
+def _frame_effective_time_s(frame: Any, orders_by_id: dict[str, Any]) -> int:
+    order_ids = {
+        *getattr(frame.challenger, "active_order_ids", []),
+        *getattr(frame, "highlighted_order_ids", []),
+        *(assignment.order_id for assignment in getattr(frame.baseline, "assignments", [])),
+        *(assignment.order_id for assignment in getattr(frame.challenger, "assignments", [])),
+    }
+    release_times = [
+        int(orders_by_id[order_id].created_at_s)
+        for order_id in order_ids
+        if order_id in orders_by_id
+    ]
+    return max([int(frame.sim_time_s), *release_times])
 
 
 def _map_anchors(contract: DaySimulationContract) -> dict[str, list[dict[str, Any]]]:
