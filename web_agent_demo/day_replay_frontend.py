@@ -834,13 +834,14 @@ def render_day_replay_index() -> str:
       background: #fff;
     }
     .map-panel {
-      height: var(--live-map-panel-height, 574px);
-      min-height: 520px;
-      max-height: min(86vh, 980px);
+      height: var(--live-map-panel-height, 640px);
+      min-height: 360px;
+      max-height: min(94vh, 1800px);
       position: relative;
       display: grid;
-      grid-template-rows: auto minmax(0, 1fr) 18px;
+      grid-template-rows: auto 16px minmax(0, 1fr) 18px;
     }
+    .map-resize-handle-top { cursor: ns-resize; }
     .real-map-stage,
     .schematic-map {
       position: relative;
@@ -864,6 +865,28 @@ def render_day_replay_index() -> str:
       min-height: 360px;
       margin: 14px 14px 0;
     }
+    .card-head-tools { display: flex; align-items: center; gap: 10px; }
+    .map-fullscreen-btn {
+      border: 1px solid var(--line-strong);
+      background: #fff;
+      color: var(--ink-2);
+      border-radius: 999px;
+      padding: 4px 11px;
+      font: 700 12px var(--font);
+      white-space: nowrap;
+    }
+    .map-fullscreen-btn:hover { border-color: var(--accent); color: var(--accent-2); box-shadow: var(--shadow-tight); }
+    /* 全屏：地图面板铺满整个视口，评委看得更清楚；ESC / 再点退出回到小窗口 */
+    .map-panel:fullscreen, .map-panel:-webkit-full-screen {
+      width: 100vw; height: 100vh; max-height: none; min-height: 0;
+      border-radius: 0; padding: 0; background: var(--surface);
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+    .map-panel:fullscreen .map-resize-handle,
+    .map-panel:-webkit-full-screen .map-resize-handle { display: none; }
+    .map-panel:fullscreen, .map-panel:-webkit-full-screen { grid-template-rows: auto minmax(0, 1fr); }
+    .map-panel:fullscreen .card-head,
+    .map-panel:-webkit-full-screen .card-head { padding: 12px 18px; }
     .map-resize-handle {
       height: 18px;
       display: grid;
@@ -1044,6 +1067,12 @@ def render_day_replay_index() -> str:
       background: repeating-linear-gradient(90deg, #059669 0 5px, transparent 5px 9px);
       height: 4px;
     }
+    /* 已送达路线：成功绿细虚线、半透明（刚送达的淡出痕迹）*/
+    .legend-swatch[data-lane="completed-route"] {
+      background: repeating-linear-gradient(90deg, rgba(22,163,74,.5) 0 4px, transparent 4px 8px);
+      height: 3px;
+      border-radius: 2px;
+    }
     .legend-swatch[data-lane="pickup"] {
       background: repeating-linear-gradient(90deg, #ea580c 0 7px, transparent 7px 11px);
       height: 4px;
@@ -1150,6 +1179,8 @@ def render_day_replay_index() -> str:
     /* 商家=取餐点，用圆角方块与圆形的骑手/客户区分开 */
     .map-dot[data-kind="merchant"] { --size: 13px; background: var(--blue); border-radius: 4px; }
     .map-dot[data-kind="rider"] { --size: 14px; background: var(--accent); }
+    /* 空闲骑手：空心青环（待命），与实心+动效的“配送中”骑手区分 */
+    .map-dot[data-kind="rider"][data-motion="idle"] { background: #fff; box-shadow: 0 0 0 2px var(--accent), 0 4px 10px rgba(15,23,42,.14); opacity: .82; }
     .map-dot[data-kind="order"] { --size: 10px; background: var(--amber); }
     .map-dot[data-dim="true"] { opacity: .3; }
     .map-dot[data-show-label="true"]::after {
@@ -1279,6 +1310,12 @@ def render_day_replay_index() -> str:
     .leaflet-map-pin-body[data-kind="rider"][data-motion="moving"] {
       animation: rider-drive-ring 1.45s ease-out infinite;
     }
+    /* 空闲骑手：白心青环（待命），与实心青“配送中”骑手区分 */
+    .leaflet-map-pin-body[data-kind="rider"][data-motion="idle"] {
+      background: #ffffff;
+      box-shadow: 0 0 0 3px rgba(15,118,110,.55), 0 4px 10px rgba(15,23,42,.14);
+      opacity: .9;
+    }
     .leaflet-map-pin-body[data-kind="rider"][data-motion="moving"]::after {
       position: absolute;
       left: 50%;
@@ -1366,8 +1403,14 @@ def render_day_replay_index() -> str:
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(232px, 1fr));
       gap: 10px;
-      padding: 4px 2px;
+      padding: 4px 2px 6px;
+      /* 可上下拖动改变面板高度：拖右下角手柄；卡片多时内部滚动 */
+      resize: vertical;
+      overflow: auto;
+      min-height: 130px;
+      max-height: 78vh;
     }
+    .line-explain-panel .card-head span::after { content: "（右下角可上下拖动调整高度）"; color: var(--muted); font-weight: 600; margin-left: 6px; }
     .line-explain-empty {
       color: var(--muted);
       font-size: 13px;
@@ -2333,7 +2376,10 @@ def render_day_replay_index() -> str:
     //   created_at_s  订单真实创建时间（释放时间）
     //   assign_at_s   派单时间 = 该订单所属决策轮的 trigger_time_s（真实触发时间）
     //   complete_at_s 完成时间 = assign_at_s + 路线 eta（真实预计送达）
-    const ORDER_FADE_S = 300;      // 完成后仍在地图淡出保留的时长（便于追溯），之后移除
+    const ORDER_FADE_S = 300;      // 完成后订单点淡出保留时长（旧值，已由 COMPLETED_TRAIL_S 接管）
+    const COMPLETED_TRAIL_S = 1800; // 已送达“淡线+绿✓点”滚动保留窗口=30分钟：保留最近半小时的配送轨迹，
+                                    // 超过自动滚动移除，既有“刚走过的完整感”，又不会全天堆积成几百条线。
+    const COMPLETED_TRAIL_CAP = 16; // 同时最多保留 16 条已送达淡线（高峰期封顶，防止过密）。
     const DEFAULT_SERVICE_S = 1500; // 未进入任何决策轮的订单（46 单）的估算服务时长
     const riderAliasBucket = (workbench.map.aliases && workbench.map.aliases.riders) || {};
     function riderLabelForId(courierId) {
@@ -2356,46 +2402,127 @@ def render_day_replay_index() -> str:
       }
       return map;
     })();
+    const orderAliasBucket = (workbench.map.aliases && workbench.map.aliases.orders) || {};
+    function orderDisplayLabelForId(orderId) {
+      return orderAliasBucket[orderId] || orderId;
+    }
+    function _screenDist(a, b) {
+      if (!a || !b) return 0;
+      return Math.hypot((Number(a.screen_x) || 0) - (Number(b.screen_x) || 0), (Number(a.screen_y) || 0) - (Number(b.screen_y) || 0));
+    }
+    // 为“未进入决策帧的订单”（早餐/下午茶等）合成一条完整的取餐→配送流程，让全天展示一致：
+    // 骑手先去商家取餐、再送到客户。位置真实（商家=下单取餐点、客户=送达点），骑手就近且不与
+    // 其他合成单时间冲突；仅“骑手身份/派单时刻/预计时长”属演示合成（订单真实下单时间不变）。
+    const SYNTH_PICKUP_WAIT_S = 120;
+    const syntheticRouteByOrderId = {};
     const orderLifecycle = (() => {
       const life = {};
+      const undispatched = [];
       for (const order of workbench.entities.orders || []) {
         const created = Number(order.created_at_s);
         const dispatch = decisionByOrderId[order.id];
         const route = oursRouteByOrderId[order.id];
-        let assignAt = null;
-        let courierId = "";
-        let courierLabel = "";
-        let completeAt;
-        let dispatched = false;
-        if (dispatch) {
-          dispatched = true;
-          assignAt = Number(dispatch.decision.trigger_time_s);
-          courierId = dispatch.action.courier_id || (order.our_result && order.our_result.courier_id) || "";
-          courierLabel = dispatch.action.courier_label || riderLabelForId(courierId);
-          let etaS = route && Number.isFinite(Number(route.eta_s)) ? Number(route.eta_s) : NaN;
-          if (!Number.isFinite(etaS) && order.our_result && Number.isFinite(Number(order.our_result.eta_min))) {
-            etaS = Number(order.our_result.eta_min) * 60;
-          }
+        if (dispatch && route) {
+          const assignAt = Number(dispatch.decision.trigger_time_s);
+          const courierId = dispatch.action.courier_id || (order.our_result && order.our_result.courier_id) || "";
+          let etaS = Number.isFinite(Number(route.eta_s)) ? Number(route.eta_s) : NaN;
+          if (!Number.isFinite(etaS) && order.our_result && Number.isFinite(Number(order.our_result.eta_min))) etaS = Number(order.our_result.eta_min) * 60;
           if (!Number.isFinite(etaS)) etaS = 600;
-          completeAt = assignAt + Math.max(120, etaS);
+          life[order.id] = {
+            id: order.id, map_label: order.map_label || orderDisplayLabelForId(order.id),
+            created_at_s: created, assign_at_s: assignAt,
+            courier_id: courierId, courier_label: dispatch.action.courier_label || riderLabelForId(courierId),
+            complete_at_s: assignAt + Math.max(120, etaS), dispatched: true, route_id: route.id, synthetic: false
+          };
         } else {
-          // 已释放但未进入任何决策轮：按估算服务时长自然淡出，不虚构骑手归属。
-          completeAt = created + DEFAULT_SERVICE_S;
+          undispatched.push(order);
         }
+      }
+      // 合成：按下单时间顺序、就近分配空闲骑手，构造 [骑手起点, 商家, 客户] 三点路线（与真实路线同构）。
+      const riderAnchors = (workbench.map.anchors.riders || []).slice(0, 18);
+      const riderFreeAt = {};
+      undispatched.sort((a, b) => Number(a.created_at_s) - Number(b.created_at_s));
+      for (const order of undispatched) {
+        const created = Number(order.created_at_s);
+        const merchantPos = order.pickup_position;
+        const customerPos = order.dropoff_position;
+        const label = order.map_label || orderDisplayLabelForId(order.id);
+        if (!merchantPos || !customerPos || !riderAnchors.length) {
+          life[order.id] = { id: order.id, map_label: label, created_at_s: created, assign_at_s: null, courier_id: "", courier_label: "", complete_at_s: created + DEFAULT_SERVICE_S, dispatched: false, route_id: "", synthetic: false };
+          continue;
+        }
+        const assignAt = created + SYNTH_PICKUP_WAIT_S;
+        let best = null, bestScore = Infinity;
+        for (const rider of riderAnchors) {
+          const free = (riderFreeAt[rider.id] || 0) <= assignAt;
+          const score = _screenDist(rider.position, merchantPos) + (free ? 0 : 1000);
+          if (score < bestScore) { bestScore = score; best = rider; }
+        }
+        const etaS = Math.min(900, Math.max(360, Math.round((_screenDist(best.position, merchantPos) + _screenDist(merchantPos, customerPos)) * 55)));
+        const completeAt = assignAt + etaS;
+        riderFreeAt[best.id] = completeAt;
+        const courierLabel = riderLabelForId(best.id);
+        syntheticRouteByOrderId[order.id] = {
+          id: "SYN-" + order.id, order_id: order.id, order_label: label,
+          courier_id: best.id, courier_label: courierLabel, lane: "ours",
+          polyline: [best.position, merchantPos, customerPos], eta_s: etaS, synthetic: true
+        };
         life[order.id] = {
-          id: order.id,
-          map_label: order.map_label || "",
-          created_at_s: created,
-          assign_at_s: assignAt,
-          courier_id: courierId,
-          courier_label: courierLabel,
-          complete_at_s: completeAt,
-          dispatched,
-          route_id: route ? route.id : ""
+          id: order.id, map_label: label, created_at_s: created, assign_at_s: assignAt,
+          courier_id: best.id, courier_label: courierLabel, complete_at_s: completeAt,
+          dispatched: true, route_id: "SYN-" + order.id, synthetic: true
         };
       }
       return life;
     })();
+    // 同一骑手不能同时送多单：后端会在一轮里给一个骑手派多单（如 R-10 同时拿 O-041、O-045）。
+    // 改为串行执行——后一单从“骑手送完前一单”才真正开始（派单时刻顺延），避免出现没有骑手在跑的
+    // “孤儿路线”（一条没人送、却画着满橙取餐段的线）。派单决策仍在原时刻，只是执行排队。
+    (() => {
+      const byCourier = {};
+      for (const id in orderLifecycle) {
+        const life = orderLifecycle[id];
+        if (!life.dispatched || !life.courier_id) continue;
+        (byCourier[life.courier_id] = byCourier[life.courier_id] || []).push(id);
+      }
+      for (const courier in byCourier) {
+        const ids = byCourier[courier].sort((a, b) => (orderLifecycle[a].assign_at_s || 0) - (orderLifecycle[b].assign_at_s || 0));
+        let cursor = 0;
+        for (const id of ids) {
+          const life = orderLifecycle[id];
+          const eta = Math.max(120, life.complete_at_s - life.assign_at_s);
+          const startAt = Math.max(life.assign_at_s, cursor);
+          life.decided_at_s = life.assign_at_s; // 决策派单时刻（用于“何时进入队列”）
+          life.assign_at_s = startAt;           // 真正开始执行的时刻
+          life.complete_at_s = startAt + eta;
+          cursor = life.complete_at_s;
+        }
+      }
+    })();
+    // 演示快进的“事件时间轴”：把全天关键业务节点（客户下单 / 派单 / 到店取餐 / 送达）收集排序。
+    // 播放推进会参照它——临近事件放慢、每个状态都看得清；空档期适当加速掠过，贴近真实调度节奏。
+    const demoEventTimes = (() => {
+      const set = new Set();
+      for (const id in orderLifecycle) {
+        const life = orderLifecycle[id];
+        if (Number.isFinite(life.created_at_s)) set.add(Math.round(life.created_at_s)); // 下单释放
+        if (life.dispatched && Number.isFinite(life.assign_at_s) && Number.isFinite(life.complete_at_s)) {
+          set.add(Math.round(life.assign_at_s));                                   // 开始执行/派单
+          set.add(Math.round((life.assign_at_s + life.complete_at_s) / 2));        // 到店取餐（取餐→配送切换）
+          set.add(Math.round(life.complete_at_s));                                 // 送达
+        }
+      }
+      return Array.from(set).sort((a, b) => a - b);
+    })();
+    function nextLifecycleEventTime(t) {
+      for (let i = 0; i < demoEventTimes.length; i++) {
+        if (demoEventTimes[i] > t + 0.001) return demoEventTimes[i];
+      }
+      return null;
+    }
+    function routeForOrder(orderId) {
+      return oursRouteByOrderId[orderId] || syntheticRouteByOrderId[orderId] || null;
+    }
     function orderStatusAt(orderId, simTimeS = inferenceState.currentTimeS) {
       const life = orderLifecycle[orderId];
       if (!life || !Number.isFinite(life.created_at_s)) return "unknown";
@@ -2545,6 +2672,28 @@ def render_day_replay_index() -> str:
     let highlightedOrderId = null;
     let flashPending = false;
     let timelineKeysBound = false;
+    let fullscreenBound = false;
+    function toggleLiveMapFullscreen() {
+      const panel = document.querySelector("[data-resizable-map-panel='vertical']");
+      if (!panel) return;
+      const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+      if (fsEl) {
+        (document.exitFullscreen || document.webkitExitFullscreen || function () {}).call(document);
+      } else {
+        (panel.requestFullscreen || panel.webkitRequestFullscreen || function () {}).call(panel);
+      }
+    }
+    function handleLiveMapFullscreenChange() {
+      const panel = document.querySelector("[data-resizable-map-panel='vertical']");
+      const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+      const isFs = Boolean(fsEl && panel && fsEl === panel);
+      if (panel) panel.dataset.fullscreen = isFs ? "true" : "false";
+      const btn = document.getElementById("live-map-fullscreen");
+      if (btn) btn.textContent = isFs ? "⛶ 退出全屏" : "⛶ 全屏";
+      // 容器尺寸变化后 Leaflet 需要重算（延时两次，兼容全屏动画）
+      window.setTimeout(() => { if (liveLeafletMap) liveLeafletMap.invalidateSize(false); }, 60);
+      window.setTimeout(() => { if (liveLeafletMap) liveLeafletMap.invalidateSize(false); }, 280);
+    }
     function highlightRoute(orderId) {
       highlightedOrderId = highlightedOrderId === orderId ? null : orderId; // 再次点击取消高亮
       flashPending = highlightedOrderId !== null;
@@ -2989,26 +3138,26 @@ def render_day_replay_index() -> str:
       const rows = [];
       for (const order of workbench.map.anchors.orders) {
         if (orderStatusAt(order.id, simTimeS) !== "dispatched") continue;
-        const route = oursRouteByOrderId[order.id];
+        const route = routeForOrder(order.id);
         if (route) rows.push(route);
       }
       // 同级按派单时间排序，保留最近 MAP_ROUTE_CAP 条正在执行的路线。
       rows.sort((a, b) => (orderLifecycle[a.order_id]?.assign_at_s || 0) - (orderLifecycle[b.order_id]?.assign_at_s || 0));
       return rows.slice(-MAP_ROUTE_CAP);
     }
-    // 刚送达（fade 窗口内）的订单：保留一条淡化的“已送达”线，让完成有明确交代、不突然消失。
+    // 已送达“淡线”滚动保留：保留最近 COMPLETED_TRAIL_S(30分钟) 内完成的配送轨迹，超过自动移除。
     function liveCompletedRoutes(simTimeS = inferenceState.currentTimeS) {
       const rows = [];
       for (const order of workbench.map.anchors.orders) {
         if (orderStatusAt(order.id, simTimeS) !== "completed") continue;
         const life = orderLifecycle[order.id];
         if (!life || !life.dispatched) continue; // 只保留“真派过单”的完成线
-        if (simTimeS > life.complete_at_s + ORDER_FADE_S) continue; // 超过淡出窗口不再画
-        const route = oursRouteByOrderId[order.id];
+        if (simTimeS > life.complete_at_s + COMPLETED_TRAIL_S) continue; // 超过 30 分钟滚动窗口不再画
+        const route = routeForOrder(order.id);
         if (route) rows.push(route);
       }
       rows.sort((a, b) => (orderLifecycle[a.order_id]?.complete_at_s || 0) - (orderLifecycle[b.order_id]?.complete_at_s || 0));
-      return rows.slice(-4); // 最多保留最近 4 条已送达线，避免堆积
+      return rows.slice(-COMPLETED_TRAIL_CAP); // 高峰期最多保留最近 16 条，防止过密
     }
     // 全天累计送达单数（单调递增，用于“已送达”核对）。
     function deliveredCountAt(simTimeS = inferenceState.currentTimeS) {
@@ -3052,7 +3201,8 @@ def render_day_replay_index() -> str:
         if (status === "unreleased" || status === "unknown") continue;
         if (status === "completed") {
           const life = orderLifecycle[order.id];
-          if (life && t > life.complete_at_s + ORDER_FADE_S) continue; // 已完成并超过淡出窗口 -> 从地图移除
+          // 绿✓订单点与已送达淡线用同一个 30 分钟滚动窗口，保证“点和线”一起保留、一起滚动移除。
+          if (life && t > life.complete_at_s + COMPLETED_TRAIL_S) continue;
         }
         visible.push({ ...order, map_order_state: status });
       }
@@ -3067,11 +3217,79 @@ def render_day_replay_index() -> str:
       return trimmed.sort((a, b) => a.created_at_s - b.created_at_s);
     }
 
+    // courier -> 该骑手承接的全部已派单订单（真实+合成），按派单时间排序，用于推导骑手全天轨迹。
+    const ordersByCourier = (() => {
+      const map = {};
+      for (const id in orderLifecycle) {
+        const life = orderLifecycle[id];
+        if (!life.dispatched || !life.courier_id) continue;
+        (map[life.courier_id] = map[life.courier_id] || []).push(id);
+      }
+      for (const courier in map) {
+        map[courier].sort((a, b) => (orderLifecycle[a].assign_at_s || 0) - (orderLifecycle[b].assign_at_s || 0));
+      }
+      return map;
+    })();
+
+    // 让“停在客户处的空闲骑手”不与该客户的订单点完全重叠：按骑手 id 给一个小方向偏移（约 40m）。
+    function _hashInt(s) { let h = 0; for (let i = 0; i < s.length; i += 1) { h = (h * 31 + s.charCodeAt(i)) | 0; } return Math.abs(h); }
+    function nudgedPosition(pos, key) {
+      if (!pos) return pos;
+      const ang = (_hashInt(String(key)) % 360) * Math.PI / 180;
+      return {
+        lat: Number(pos.lat) + Math.cos(ang) * 0.00045,
+        lng: Number(pos.lng) + Math.sin(ang) * 0.00045,
+        screen_x: Number(pos.screen_x) + Math.cos(ang) * 2.6,
+        screen_y: Number(pos.screen_y) + Math.sin(ang) * 2.6
+      };
+    }
+    // 骑手轨迹（全时段一致、位置真实）：
+    //   未接单 -> 停在驻点(anchor)；配送中 -> 沿路线移动(取餐段/配送段)；
+    //   送完 -> 停在“最后一个客户”附近“空闲·待命”，可继续接下一单（符合现实：骑手送完还在，能再接单）。
+    function riderStateAt(courierId, anchorPos, simTimeS) {
+      const ids = ordersByCourier[courierId] || [];
+      let current = null;
+      let lastDone = null;
+      let doneCount = 0;
+      for (const oid of ids) {
+        const life = orderLifecycle[oid];
+        if (simTimeS < life.assign_at_s) break;
+        if (simTimeS < life.complete_at_s) { current = oid; break; }
+        lastDone = oid;
+        doneCount += 1;
+      }
+      if (current) {
+        const life = orderLifecycle[current];
+        const route = routeForOrder(current);
+        const poly = route ? route.polyline : null;
+        const span = Math.max(1, life.complete_at_s - life.assign_at_s);
+        const progress = clamp((simTimeS - life.assign_at_s) / span, 0, 1);
+        const position = poly ? pointAlongPolyline(poly, progress) : anchorPos;
+        const leg = poly && progress < merchantFractionForPolyline(poly) ? "pickup" : "deliver";
+        return {
+          position, motion: "moving", order_id: current, task_order_ids: [current], task_order_count: 1,
+          merchant_label: merchantLabelForOrder(current), leg,
+          phase: leg === "pickup" ? "取餐中" : "配送中", progress
+        };
+      }
+      if (lastDone) {
+        const anchor = orderAnchorById[lastDone];
+        const at = (anchor && anchor.dropoff) || anchorPos;
+        return { position: nudgedPosition(at, courierId), motion: "idle", phase: `空闲·待命（已完成 ${doneCount} 单）`, done_count: doneCount, last_order_id: lastDone };
+      }
+      return { position: anchorPos, motion: "idle", phase: "空闲·待命", done_count: 0 };
+    }
+
     function riderPositionsForFrame(frame) {
-      // 实时地图只显示「正在执行配送」的骑手（由派单路线+进度推导）。
-      // 不再显示空闲快照骑手——它们会停在刚送达的订单点上、与已送达点重叠，且会误显示“配送中”。
-      // 空闲/整支运力在「骑手运力」页查看。
-      return dedupeRiderPositions(deriveMovingRiders(inferenceState.currentTimeS));
+      const simTimeS = inferenceState.currentTimeS;
+      const anchors = (workbench.map.anchors.riders || []).slice(0, 18);
+      const riders = anchors.map((rider) => {
+        const state = riderStateAt(rider.id, rider.position, simTimeS);
+        return { id: rider.id, label: riderLabelForId(rider.id), map_label: riderLabelForId(rider.id), ...state };
+      }).filter((rider) => rider.position);
+      // 配送中的骑手排前面，保证“正在送餐的骑手”一定优先显示（即使有渲染上限也不会被截掉）。
+      riders.sort((a, b) => (a.motion === "moving" ? 0 : 1) - (b.motion === "moving" ? 0 : 1));
+      return dedupeRiderPositions(riders);
     }
 
     // 同一骑手任一时刻只保留一个当前位置，杜绝地图上出现两个同名骑手（“分身”）。
@@ -3083,50 +3301,6 @@ def render_day_replay_index() -> str:
       return Array.from(seen.values());
     }
 
-    // 移动骑手完全由「当前正在执行的派单路线 + 订单生命周期进度」推导，
-    // 与后端每 15 分钟一帧、且只覆盖单个时段的 courier_tracks 解耦，从而保证：
-    //   1) 长配送（ETA 跨多个时段帧）全程都有骑手和执行进度，不会中途消失；
-    //   2) 骑手在派单时刻从路线起点出发（progress=0），绝不“凭空出现在半路”；
-    //   3) 骑手只承接「已派单·执行中」的订单，与订单点/路线/状态文案三处严格一致。
-    function deriveMovingRiders(simTimeS) {
-      const byCourier = new Map();
-      for (const route of liveDispatchedRoutes(simTimeS)) {
-        const life = orderLifecycle[route.order_id];
-        if (!life || !life.dispatched) continue;
-        const list = byCourier.get(route.courier_id) || [];
-        list.push({ route, life });
-        byCourier.set(route.courier_id, list);
-      }
-      const riders = [];
-      for (const [courierId, items] of byCourier) {
-        items.sort((a, b) => (a.life.assign_at_s || 0) - (b.life.assign_at_s || 0));
-        const primary = items[0];
-        const span = Math.max(1, primary.life.complete_at_s - primary.life.assign_at_s);
-        const progress = clamp((simTimeS - primary.life.assign_at_s) / span, 0, 1);
-        const position = pointAlongPolyline(primary.route.polyline, progress);
-        if (!position) continue;
-        const taskOrderIds = uniqueIds(items.map((item) => item.route.order_id));
-        // 路线为 [骑手起点, 商家, 客户]，商家点在进度 1/(点数-1) 处（3 点即 0.5）。
-        // 进度未过商家 => 正在“前往取餐”；已过 => 正在“配送”。
-        const merchantFraction = merchantFractionForPolyline(primary.route.polyline);
-        const leg = progress < merchantFraction ? "pickup" : "deliver";
-        riders.push({
-          id: courierId,
-          label: riderLabelForId(courierId),
-          map_label: riderLabelForId(courierId),
-          order_id: primary.route.order_id,
-          merchant_label: merchantLabelForOrder(primary.route.order_id),
-          task_order_ids: taskOrderIds,
-          task_order_count: taskOrderIds.length,
-          position,
-          motion: "moving",
-          leg,
-          phase: leg === "pickup" ? "取餐中" : "配送中",
-          progress
-        });
-      }
-      return riders;
-    }
 
     // ---- 商家（取餐点）与任务链关系辅助 ----------------------------------
     const merchantAnchorById = Object.fromEntries((workbench.map.anchors.merchants || []).map((m) => [m.id, m]));
@@ -3252,6 +3426,14 @@ def render_day_replay_index() -> str:
         timelineKeysBound = true;
         document.addEventListener("keydown", handleProgressKeyboardSeek);
       }
+      // 地图全屏：点按钮进入全屏，ESC / 再点退出（浏览器原生 ESC 触发 fullscreenchange 复原）。
+      const fullscreenBtn = document.getElementById("live-map-fullscreen");
+      if (fullscreenBtn) fullscreenBtn.addEventListener("click", toggleLiveMapFullscreen);
+      if (!fullscreenBound) {
+        fullscreenBound = true;
+        document.addEventListener("fullscreenchange", handleLiveMapFullscreenChange);
+        document.addEventListener("webkitfullscreenchange", handleLiveMapFullscreenChange);
+      }
       // 点选「每条线说明」卡片 → 高亮地图上对应线段（容器常驻，用事件委托，仅绑定一次）
       const lineExplain = document.getElementById("live-line-explain");
       if (lineExplain && lineExplain.dataset.clickBound !== "true") {
@@ -3265,20 +3447,23 @@ def render_day_replay_index() -> str:
 
     function bindLiveMapResizeHandle() {
       const panel = document.querySelector("[data-resizable-map-panel='vertical']");
-      const handle = document.getElementById("live-map-resize-handle");
-      if (!panel || !handle || handle.dataset.bound === "true") return;
-      handle.dataset.bound = "true";
+      if (!panel) return;
       syncLiveMapResizeHandleValue();
-      handle.addEventListener("pointerdown", handleLiveMapResizePointerDown);
-      handle.addEventListener("keydown", handleLiveMapResizeKeyboard);
+      for (const id of ["live-map-resize-handle", "live-map-resize-handle-top"]) {
+        const handle = document.getElementById(id);
+        if (!handle || handle.dataset.bound === "true") continue;
+        handle.dataset.bound = "true";
+        handle.addEventListener("pointerdown", handleLiveMapResizePointerDown);
+        handle.addEventListener("keydown", handleLiveMapResizeKeyboard);
+      }
     }
 
     function liveMapPanelHeightBounds() {
-      const minHeight = window.matchMedia?.("(max-width: 720px)").matches ? 420 : 520;
-      const viewportLimit = Math.floor((window.innerHeight || 900) * .86);
+      const minHeight = window.matchMedia?.("(max-width: 720px)").matches ? 300 : 360;
+      const viewportLimit = Math.floor((window.innerHeight || 900) * .94);
       return {
         min: minHeight,
-        max: Math.max(minHeight, Math.min(980, viewportLimit))
+        max: Math.max(minHeight, Math.min(1800, viewportLimit))
       };
     }
 
@@ -3295,6 +3480,8 @@ def render_day_replay_index() -> str:
       liveMapResizeState.pointerId = event.pointerId;
       liveMapResizeState.startY = event.clientY;
       liveMapResizeState.startHeight = panel.getBoundingClientRect().height;
+      // 顶部手柄 dir=-1（向上拖=变大），底部手柄 dir=+1（向下拖=变大）
+      liveMapResizeState.dir = event.currentTarget?.dataset?.resizeDir === "top" ? -1 : 1;
       panel.dataset.resizingMap = "true";
       if (event.currentTarget?.setPointerCapture) event.currentTarget.setPointerCapture(event.pointerId);
       window.addEventListener("pointermove", handleLiveMapResizePointerMove);
@@ -3306,7 +3493,8 @@ def render_day_replay_index() -> str:
     function handleLiveMapResizePointerMove(event) {
       if (!liveMapResizeState.active || liveMapResizeState.pointerId !== event.pointerId) return;
       event.preventDefault();
-      setLiveMapPanelHeight(liveMapResizeState.startHeight + event.clientY - liveMapResizeState.startY);
+      const dir = liveMapResizeState.dir || 1;
+      setLiveMapPanelHeight(liveMapResizeState.startHeight + dir * (event.clientY - liveMapResizeState.startY));
     }
 
     function handleLiveMapResizePointerEnd(event) {
@@ -3492,11 +3680,14 @@ def render_day_replay_index() -> str:
       clearInferenceTimer();
     }
 
-    // 逐秒播放用更短的 tick、让画面明显在动（1x 约 2.5 仿真秒/真实秒，骑手平滑移动）；
-    // 演示快进保持 1 秒一大步（900 仿真秒/tick）。避免“切到逐秒后看起来像卡住不动”。
+    // 两种播放都用 400ms 短 tick，让画面连续、骑手平滑移动（不再是“1 秒一大步”地跳）。
     function currentTickMs() {
-      return inferenceState.playbackPace === "realtime" ? 400 : 1000;
+      return 400;
     }
+
+    // 演示快进的基础节奏：1x ≈ 90 仿真秒 / 真实秒（原来是 900，太快、一步跨 15 分钟）。
+    // 全天 16 小时按 90x 约 10 分钟放完，再叠加“临近事件放慢”，看得清商家→骑手→客户全过程。
+    const DEMO_BASE_RATE_X = 90;
 
     function scheduleInferenceTick() {
       clearInferenceTimer();
@@ -3512,8 +3703,28 @@ def render_day_replay_index() -> str:
       return Math.max(0.5, inferenceState.speed);
     }
 
+    // 演示快进：事件感知的推进步长，符合真实骑手送单节奏——
+    // ① 基础步长 = 90x × 倍速 × tick 秒；② 若一步会跨过“下一个业务事件”（下单/派单/取餐/送达），
+    // 就收紧到刚好落在该事件后一点，保证每个状态都被渲染、绝不一次跳过好几个状态；
+    // ③ 离下一个事件很远的空档期，允许适当加速掠过（但落点留在事件前一点，能看到它到来）。
     function demoPlaybackStepSeconds() {
-      return Math.max(60, 900 * inferenceState.speed);
+      const tickS = currentTickMs() / 1000;
+      const speed = inferenceState.speed;
+      const base = DEMO_BASE_RATE_X * speed * tickS;   // 1x：90×1×0.4 = 36 仿真秒/tick
+      const floor = base * 0.25;                        // 极密集期的步长下限，避免卡成蠕动
+      const t = inferenceState.currentTimeS;
+      const nextEvt = nextLifecycleEventTime(t);
+      if (nextEvt == null) return base;
+      const gap = nextEvt - t;
+      if (gap <= base) {
+        // 会越过下一个事件 → 只走到事件后一点点，让这个状态变化被看见（密集期自动放慢）。
+        return clamp(gap + 2, floor, base);
+      }
+      if (gap > 300) {
+        // 空档期：加速掠过没内容的时间，但停在下一个事件前约 90 秒，能看见它临近。
+        return Math.min(base * 3, gap - 90);
+      }
+      return base;
     }
 
     function advanceInferenceTick() {
@@ -3785,11 +3996,12 @@ def render_day_replay_index() -> str:
               <div id="inference-progress-control" class="inference-progress" role="slider" tabindex="0" aria-label="拖动跳转到对应推演秒数" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${inferenceProgressPct()}" aria-valuetext="${escapeHtml(`${clockPrecise(inferenceState.currentTimeS)} / ${fmtNumber(inferenceProgressPct(), 1)}%`)}" title="拖动进度条跳转到对应推演秒数；左右方向键：短按 ±1 分钟，长按连续 ±1 秒"><span id="inference-progress-bar" style="--progress:${inferenceProgressPct()}%"></span></div>
               </div>
               <div class="card map-panel" data-resizable-map-panel="vertical">
-              <div class="card-head"><h3>实时地图层</h3><span id="map-runtime-hint">商家 / 订单 / 骑手 / 路线 / 热点</span></div>
+              <div class="card-head"><h3>实时地图层</h3><div class="card-head-tools"><span id="map-runtime-hint">商家 / 订单 / 骑手 / 路线 / 热点</span><button id="live-map-fullscreen" class="map-fullscreen-btn" type="button" title="全屏展示地图（ESC 退出）" aria-label="全屏展示地图">⛶ 全屏</button></div></div>
+              <div id="live-map-resize-handle-top" class="map-resize-handle map-resize-handle-top" data-resize-dir="top" role="separator" aria-orientation="horizontal" aria-label="向上拖动放大地图" title="向上拖动放大地图、向下缩小" tabindex="0"></div>
               <div id="live-map-stage" class="real-map-stage schematic-map" data-map-layer="primary" data-real-map-provider="leaflet" data-tile-layer="cartodb-light-nolabels" data-real-map-status="loading" data-map-mode="${escapeHtml(inferenceState.mode)}" data-frame-id="${escapeHtml(currentFrame.id)}">
                 ${renderLiveMapLayer(currentFrame)}
               </div>
-              <div id="live-map-resize-handle" class="map-resize-handle" role="separator" aria-orientation="horizontal" aria-label="调整地图高度" tabindex="0"></div>
+              <div id="live-map-resize-handle" class="map-resize-handle" data-resize-dir="bottom" role="separator" aria-orientation="horizontal" aria-label="向下拖动放大地图" title="向下拖动放大地图、向上缩小" tabindex="0"></div>
               </div>
               <div class="card line-explain-panel">
                 <div class="card-head"><h3>每条线说明</h3><span id="line-explain-caption">当前时刻真实在跑的线，逐条对应地图</span></div>
@@ -4027,7 +4239,7 @@ def render_day_replay_index() -> str:
           ${renderMapRoutes(routes, riders, waitingLinks)}
           ${renderHotspots()}
           ${renderMapDots("merchant", merchants, "position")}
-          ${renderMapDots("rider", riders.slice(0, 14), "position")}
+          ${renderMapDots("rider", riders, "position")}
           ${renderMapDots("order", orders.slice(0, 96), "dropoff", focusOrderIds, showAllOrderLabels)}
         </div>
         ${renderMapLegend()}
@@ -4050,7 +4262,7 @@ def render_day_replay_index() -> str:
     function renderMapRoutes(routes, riders = [], waitingLinks = []) {
       const completedRows = liveCompletedRoutes();
       if (!routes.length && !waitingLinks.length && !completedRows.length) return "";
-      const progressLines = activeProgressRoutes(routes, riders);
+      const progressLines = activeProgressRoutes(routes);
       const segments = routes.flatMap(routeRenderSegments);
       return `
         <svg class="map-route" data-route-count="${routes.length}" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
@@ -4109,28 +4321,43 @@ def render_day_replay_index() -> str:
       return riders.find((rider) => rider.motion === "moving") || null;
     }
 
-    function activeProgressRoutes(routes = [], riders = []) {
-      const movingByPair = new Map(riders.filter((rider) => rider.motion === "moving").map((rider) => [`${rider.id}:${rider.order_id}`, rider]));
+    // 执行进度（绿色“已走过”线）——全局一致。
+    // 关键修复：不再靠“把某条路线匹配到一个 moving 骑手对象”来决定画不画绿线，
+    // 而是对【每一条正在执行的路线】直接用订单生命周期算进度：
+    //   progress = (T − assign_at_s) / (complete_at_s − assign_at_s)
+    // 然后沿 route.polyline 精确铺到当前插值点。这样只要是“执行中”的单，
+    // 无论取餐段还是配送段，都必有一条绿色“已走过”覆盖已行驶部分，未行驶部分才露出
+    // 橙(取餐)/teal(配送)。彻底消除“有的取餐段是绿的、有的却整条橙色”的不一致，
+    // 也去掉了旧的 slice(0,4) 封顶（高峰期 5~8 条执行中路线里，被截掉的那几条正是“满橙线”）。
+    function activeProgressRoutes(routes = [], simTimeS = inferenceState.currentTimeS) {
       return routes
         .filter((route) => !["baseline", "previous"].includes(route.renderLane || route.lane))
         .map((route) => {
-          const rider = movingByPair.get(`${route.courier_id}:${route.order_id}`);
-          if (!rider) return null;
-          const progressPolyline = progressPolylineForRoute(route, rider);
+          const life = orderLifecycle[route.order_id];
+          if (!life || !life.dispatched || !Number.isFinite(life.assign_at_s) || !Number.isFinite(life.complete_at_s)) return null;
+          const span = Math.max(1, life.complete_at_s - life.assign_at_s);
+          const progress = clamp((simTimeS - life.assign_at_s) / span, 0, 1);
+          if (progress <= 0.001) return null; // 刚派单、还没起步的不画绿线
+          const progressPolyline = progressPolylineForRoute(route, progress);
           return progressPolyline.length >= 2 ? {...route, progressPolyline} : null;
         })
-        .filter(Boolean)
-        .slice(0, 4);
+        .filter(Boolean);
     }
 
-    function progressPolylineForRoute(route, rider) {
+    // 沿折线精确取“已走过”那一段：start → 按 progress 插值出的当前点。
+    // 折线按“段数”均匀参数化（3 点=2 段：0~0.5 在取餐段，0.5~1 在配送段），
+    // 不再整取到商家节点、也不再依赖骑手对象的 position。
+    function progressPolylineForRoute(route, progress) {
       const points = route.polyline || [];
       if (points.length < 2) return [];
-      const progress = clamp(Number(rider.progress || 0), 0, 1);
-      const keep = Math.max(1, Math.ceil((points.length - 1) * progress));
-      const polyline = points.slice(0, keep + 1);
-      if (rider.position) polyline.push(rider.position);
-      return polyline;
+      const p = clamp(Number(progress) || 0, 0, 1);
+      const segCount = points.length - 1;
+      const exact = p * segCount;
+      const segIdx = Math.min(segCount - 1, Math.floor(exact));
+      const frac = exact - segIdx;
+      const out = points.slice(0, segIdx + 1);
+      out.push(interpolateMapPoint(points[segIdx], points[segIdx + 1], frac));
+      return out;
     }
 
     function orderStateCounts(orders = []) {
@@ -4250,16 +4477,19 @@ def render_day_replay_index() -> str:
           <div class="line-explain-foot">整体进度 ${fmtNumber(prog * 100, 0)}%</div>
         </div>`);
       }
-      // 刚送达（fade 窗口内）：淡出卡片，让“执行中 → 已送达”的过渡在面板里也看得到。
-      for (const route of liveCompletedRoutes(t)) {
+      // 已送达卡片：面板里只列最近 6 条（地图淡线可留更久），避免卡片过多把面板撑长。
+      for (const route of liveCompletedRoutes(t).slice(-6)) {
         const life = orderLifecycle[route.order_id] || {};
         const orderLabel = actionDisplayLabel("order", route);
         const riderLabel = actionDisplayLabel("rider", route);
         const merchantLabel = merchantLabelForOrder(route.order_id);
         const selected = highlightedOrderId === route.order_id ? " data-selected='1'" : "";
+        const doneAt = life.complete_at_s != null ? clock(life.complete_at_s) : "";
         cards.push(`<div class="line-explain-card" role="button" tabindex="0" title="点选高亮地图上这条线" data-done="1" data-order="${escapeHtml(orderLabel)}" data-order-id="${escapeHtml(route.order_id)}"${selected}>
           <div class="line-explain-head"><b>${escapeHtml(riderLabel)} → ${escapeHtml(orderLabel)}</b><span class="line-explain-badge" data-phase="done">已送达 ✓</span></div>
-          <div class="line-explain-leg"><i class="leg-swatch" data-lane="completed-route"></i><span>商家${escapeHtml(merchantLabel)} → 客户${escapeHtml(orderLabel)}</span><em>${life.complete_at_s != null ? clock(life.complete_at_s) + " 送达" : "已送达"}</em></div>
+          <div class="line-explain-leg"><i class="leg-swatch" data-lane="pickup"></i><span>取餐段：${escapeHtml(riderLabel)} → 商家${escapeHtml(merchantLabel)}</span><em>已取餐</em></div>
+          <div class="line-explain-leg"><i class="leg-swatch" data-lane="ours"></i><span>配送段：商家${escapeHtml(merchantLabel)} → 客户${escapeHtml(orderLabel)}</span><em>已送达</em></div>
+          <div class="line-explain-foot">整体进度 100%${doneAt ? ` · ${escapeHtml(doneAt)} 送达` : ""}</div>
         </div>`);
       }
       for (const order of waiting) {
@@ -4300,7 +4530,7 @@ def render_day_replay_index() -> str:
     function renderMapLegend() {
       const entityItems = [
         ["merchant", "商家（取餐点）"],
-        ["rider", "骑手"],
+        ["rider", "骑手（实心=配送中 / 空心=空闲）"],
         ["hotspot", "热点"]
       ];
       // 客户订单点按生命周期着色，图例逐一解释，避免“点消失/变色看不懂”。
@@ -4313,7 +4543,8 @@ def render_day_replay_index() -> str:
       const routeItems = [
         ["pickup", "取餐段（骑手→商家）"],
         ["ours", "配送段（商家→客户）"],
-        ["active-progress", "执行进度"],
+        ["active-progress", "执行进度（骑手已走过）"],
+        ["completed-route", "已送达路线（淡出）"],
         ["pending-link", "待派连线（商家→客户）"]
       ];
       if (inferenceState.mode !== "current") {
@@ -4406,7 +4637,7 @@ def render_day_replay_index() -> str:
         if (life && life.dispatched && life.courier_label) details.push(`骑手:${life.courier_label}`);
       }
       if (kind === "rider") {
-        if (item.motion === "moving" && item.phase) details.push(item.phase); // 取餐中 / 配送中
+        if ((item.motion === "moving" || item.motion === "idle") && item.phase) details.push(item.phase); // 取餐中 / 配送中 / 空闲·待命
         else if (item.phase) details.push(displayRiderState(item.phase));
         if (item.leg === "pickup" && item.merchant_label) details.push(`前往商家:${item.merchant_label}`);
         if (item.order_id) details.push(`当前单:${actionDisplayLabel("order", { order_id: item.order_id })}`);
@@ -4438,7 +4669,7 @@ def render_day_replay_index() -> str:
       if (!window.L || !stage || !liveLeafletMap || !liveLeafletOverlayGroup || stage.dataset.realMapStatus !== "leaflet") return false;
       try {
         stage.dataset.leafletRouteCount = String(routes.length);
-        stage.dataset.leafletMarkerCount = String(workbench.map.anchors.merchants.slice(0, 16).length + riders.slice(0, 14).length + orders.slice(0, 96).length);
+        stage.dataset.leafletMarkerCount = String(workbench.map.anchors.merchants.slice(0, 16).length + riders.length + orders.slice(0, 96).length);
         const chip = stage.querySelector(".map-mode-chip");
         if (chip) chip.textContent = `${inferenceModeLabels[inferenceState.mode]} / ${frame.id}`;
         liveLeafletOverlayGroup.clearLayers();
@@ -4463,7 +4694,7 @@ def render_day_replay_index() -> str:
       try {
         stage.dataset.realMapStatus = "loading";
         stage.dataset.leafletRouteCount = String(routes.length);
-        stage.dataset.leafletMarkerCount = String(workbench.map.anchors.merchants.slice(0, 16).length + riders.slice(0, 14).length + orders.slice(0, 96).length);
+        stage.dataset.leafletMarkerCount = String(workbench.map.anchors.merchants.slice(0, 16).length + riders.length + orders.slice(0, 96).length);
         const map = window.L.map(container, {
           attributionControl: true,
           boxZoom: true,
@@ -4503,7 +4734,7 @@ def render_day_replay_index() -> str:
       renderLeafletHotspots(layerGroup);
       renderLeafletRoutes(layerGroup, routes, riders, waitingLinks);
       renderLeafletMarkers(layerGroup, "merchant", merchants, "position");
-      renderLeafletMarkers(layerGroup, "rider", riders.slice(0, 14), "position");
+      renderLeafletMarkers(layerGroup, "rider", riders, "position");
       renderLeafletMarkers(layerGroup, "order", orders.slice(0, 96), "dropoff", focusedMapOrderIds(routes, riders), shouldShowAllOrderLabels(frame, routes));
     }
 
@@ -4520,13 +4751,21 @@ def render_day_replay_index() -> str:
       workbench.map.hotspots.forEach((hotspot, index) => {
         const active = hotspot.start_s <= inferenceState.currentTimeS && inferenceState.currentTimeS <= hotspot.end_s;
         const label = mapEntityLabel("hotspot", hotspot, index);
+        const radius = 230 + Number(hotspot.severity || 1) * 220;
+        const color = active ? "#b7791f" : "#94a3b8";
+        // 关键修复（全局）：热点填充圆过去是可交互的，整块填充会“吃掉”悬浮/点击——
+        // 于是点热点圈里的线/点，选中的却是热点方块。改为两层：
+        // ① 填充圆只做背景，interactive:false → 指针完全穿透到里面的线和点；
         window.L.circle(mapPoint(hotspot.center), {
-          radius: 230 + Number(hotspot.severity || 1) * 220,
-          color: active ? "#b7791f" : "#94a3b8",
-          fillColor: active ? "#b7791f" : "#94a3b8",
+          radius, color, fillColor: color,
           fillOpacity: active ? .13 : .08,
           opacity: active ? .34 : .18,
-          weight: 1
+          weight: 1, interactive: false
+        }).addTo(map);
+        // ② 只保留“无填充”的一圈描边环可交互（fill:false → 内部不接收指针，仅环线本身接收），
+        //    悬浮热点边缘仍能看到热点说明，环内部不再挡住线/点。
+        window.L.circle(mapPoint(hotspot.center), {
+          radius, color, weight: 2, opacity: active ? .5 : .3, fill: false
         }).bindTooltip(escapeHtml(mapEntityTitle("hotspot", label, {phase: active ? "active" : "inactive"})), { sticky: true }).addTo(map);
       });
     }
@@ -4541,14 +4780,14 @@ def render_day_replay_index() -> str:
       return { ...style, opacity: (Number(style.opacity) || .8) * 0.25 }; // 聚焦时淡化其它线
     }
     function renderLeafletRoutes(map, routes, riders = [], waitingLinks = []) {
-      const progressRoutes = activeProgressRoutes(routes, riders);
+      const progressRoutes = activeProgressRoutes(routes);
       // 聚焦模式下，非焦点线的白色描边也一起淡化，避免淡线仍被高亮白边“拽”出来。
       const haloFor = (lane, orderId) => {
         const halo = routeHaloStyle(lane);
         if (highlightedOrderId && orderId !== highlightedOrderId) halo.opacity = (Number(halo.opacity) || .9) * 0.22;
         return halo;
       };
-      // 先画“已送达”淡出线（垫底），再画待派/执行中，保证进行中的线在最上层。
+      // 先画“已送达”淡出线（垫底），再画待派/执行中，保证进行中的线在最上层。图例已解释此淡线。
       for (const route of liveCompletedRoutes()) {
         const points = (route.polyline || []).map(mapPoint).filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
         if (points.length < 2) continue;
