@@ -770,7 +770,7 @@ def _simulate_day_algorithm(world: DaySimulationWorld, algorithm_id: str) -> _Al
         completed_by_slice[time_slice.id] = tuple(record.assignment.order_id for record in cumulative_records if record.finish_at_s <= time_slice.end_s)
         courier_positions_by_slice[time_slice.id] = _courier_position_snapshots(courier_plans, time_slice.end_s)
         route_overlays_by_slice[time_slice.id] = tuple(
-            _record_route_overlay(record, order_by_id[record.assignment.order_id], algorithm_id) for record in slice_records[:8]
+            _record_route_overlay(record, order_by_id[record.assignment.order_id], algorithm_id) for record in slice_records
         )
         summary_by_slice[time_slice.id] = _slice_decision_summary(algorithm_id, slice_records)
 
@@ -1309,6 +1309,10 @@ def _record_route_overlay(record: _AssignmentRecord, order: DayOrder, algorithm_
         ],
         "eta_s": record.assignment.total_eta_s,
         "cost_yuan": record.assignment.expected_cost_yuan,
+        # 真实的“开始执行/送达”绝对时刻（后端已按骑手可用时间串行化：finish=start+busy）。
+        # 前端直接用这两个时刻，无需再自己估算或串行化 → 地图时序完全后端真值、且不会出现孤儿路线。
+        "assign_at_s": round(record.finish_at_s - record.courier_busy_s, 3),
+        "complete_at_s": round(record.finish_at_s, 3),
     }
 
 
@@ -1487,7 +1491,9 @@ def _slice_decision_summary(algorithm_id: str, records: list[_AssignmentRecord])
 
 
 def _should_emit_frame(time_slice: TimeSlice, records: tuple[_AssignmentRecord, ...] | list[_AssignmentRecord]) -> bool:
-    return bool(records) and (time_slice.compare_due or time_slice.demand_phase in {"lunch_peak", "dinner_peak", "night_supply_gap"})
+    # 全天真实数据：只要该时段有真实派单记录就发一帧，覆盖 07:00–23:00（不再只挑午/晚高峰等重点帧）。
+    # 这样前端 metrics.series/decisions/map.routes 全天都有真实数据，无需前端合成早餐单。
+    return bool(records)
 
 
 def _frame_id(time_slice_id: str) -> str:

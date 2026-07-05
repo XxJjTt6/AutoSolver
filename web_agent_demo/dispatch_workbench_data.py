@@ -892,6 +892,8 @@ def _route_payloads(contract: DaySimulationContract, map_aliases: dict[str, dict
                         "polyline": [_position_payload(point) for point in route.get("polyline", [])],
                         "eta_s": route.get("eta_s", 0),
                         "cost_yuan": route.get("cost_yuan", 0),
+                        "assign_at_s": route.get("assign_at_s"),      # 真实开始执行时刻（后端串行化）
+                        "complete_at_s": route.get("complete_at_s"),  # 真实送达时刻
                     }
                 )
     return routes
