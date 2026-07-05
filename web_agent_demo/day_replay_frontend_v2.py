@@ -2788,10 +2788,11 @@ def render_day_replay_index() -> str:
     .memory-round-table tbody tr td { transition: background .25s ease; }
     .memory-round-table tbody tr:hover td { background: var(--surface-2); }
     .memory-round-table tbody tr[data-flash="1"] td { background: rgba(251,241,219,.95); }
+    /* 来源定位高亮用蓝色（与召回芯片同色系），与琥珀的“当前查看”选中态区分 */
     .memory-matrix-row[data-flash="1"] {
-      border-color: rgba(183,121,31,.6);
-      background: rgba(251,241,219,.85);
-      box-shadow: 0 0 0 2px rgba(183,121,31,.16);
+      border-color: rgba(37,99,235,.5);
+      background: rgba(37,99,235,.07);
+      box-shadow: 0 0 0 2px rgba(37,99,235,.14);
     }
     .memory-case-chips span[data-case-id] { cursor: pointer; transition: background .15s ease, border-color .15s ease; }
     .memory-case-chips span[data-case-id]:hover {
@@ -2816,7 +2817,8 @@ def render_day_replay_index() -> str:
       stroke-width: 2.5;
       transform-box: fill-box;
       transform-origin: center;
-      animation: memory-halo 1.6s ease-out infinite;
+      /* 脉冲 3 次吸引注意后停为静态选中圈，直到再次点击取消 */
+      animation: memory-halo 1.15s ease-out 3;
     }
     @media (prefers-reduced-motion: reduce) {
       .memory-curve-stage .memory-focus-halo { animation: none; }
