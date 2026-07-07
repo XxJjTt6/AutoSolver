@@ -2405,6 +2405,15 @@ def render_day_replay_index() -> str:
       font-size: 11px;
       line-height: 1.5;
     }
+    .memory-method-note b { color: var(--ink-2); }
+    .memory-method-note ul {
+      margin: 4px 0 0;
+      padding-left: 18px;
+      display: grid;
+      gap: 3px;
+    }
+    .memory-method-note > span { display: block; margin-top: 5px; }
+    .memory-matrix-legend { margin: 0 0 10px; }
     .memory-round-table-wrap { margin-top: 10px; }
     .memory-round-table-wrap summary {
       cursor: pointer;
@@ -2524,6 +2533,60 @@ def render_day_replay_index() -> str:
       inset: -8px;
     }
     .memory-matrix-dot[data-hidden="1"] { opacity: .12; }
+    .memory-matrix-lane .lane-arcs path[data-hidden="1"] { opacity: 0; }
+    .memory-matrix-row[data-future="1"] { opacity: .25; }
+    /* 琥珀=正在解剖的轮；蓝=“当天可借鉴”定位出的历史轮。
+       用“白色间隔环 + 强色外环”两层阴影 + 短暂脉冲：白间隔保证与点自身描边分离，
+       所以即使高亮色与点底色相同（蓝高亮打在空心蓝点、琥珀打在空心橙点）也清晰可辨。 */
+    .memory-matrix-dot[data-picked="1"],
+    .memory-matrix-dot[data-linked="1"] {
+      z-index: 3;
+      animation: memory-dot-pop 1.05s ease-out 3;
+    }
+    .memory-matrix-dot[data-picked="1"] { box-shadow: 0 0 0 2px #fff, 0 0 0 4.5px var(--amber) !important; }
+    .memory-matrix-dot[data-linked="1"] { box-shadow: 0 0 0 2px #fff, 0 0 0 4.5px var(--blue) !important; }
+    @keyframes memory-dot-pop {
+      0% { transform: translateX(-50%) scale(1); }
+      45% { transform: translateX(-50%) scale(1.55); }
+      100% { transform: translateX(-50%) scale(1); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .memory-matrix-dot[data-picked="1"],
+      .memory-matrix-dot[data-linked="1"] { animation: none; }
+    }
+    .memory-chip-group {
+      font: 800 9.5px var(--mono);
+      font-style: normal;
+      color: var(--muted);
+      margin-right: 2px;
+      white-space: nowrap;
+    }
+    .memory-chip-more { color: var(--muted); font: 600 10px var(--mono); }
+    .memory-day-chip {
+      padding: 4px 7px;
+      border: 1px solid rgba(13,148,136,.32);
+      border-radius: 999px;
+      background: rgba(13,148,136,.07);
+      color: #0b7268;
+      font: 700 10px var(--mono);
+      cursor: pointer;
+      transition: background .15s ease;
+    }
+    .memory-day-chip:hover { background: rgba(13,148,136,.15); }
+    .memory-foreign-chip { opacity: .85; }
+    .memory-prior-block {
+      margin-top: 8px;
+      padding: 8px 10px;
+      border: 1px dashed rgba(183,121,31,.35);
+      border-radius: 10px;
+      background: rgba(251,241,219,.4);
+    }
+    .memory-prior-rule {
+      margin: 5px 0 0;
+      color: var(--ink-2);
+      font-size: 11.5px;
+      line-height: 1.5;
+    }
     .memory-matrix-total {
       text-align: right;
       display: grid;
@@ -2813,7 +2876,8 @@ def render_day_replay_index() -> str:
     .memory-round-table td small { color: var(--muted); font-size: 10px; }
     .memory-curve-stage .memory-focus-halo {
       fill: none;
-      stroke: #0d9488;
+      /* 琥珀选中圈：与全天最佳轮的青绿常驻脉冲环（.round-dot-halo）区分开 */
+      stroke: var(--amber);
       stroke-width: 2.5;
       transform-box: fill-box;
       transform-origin: center;
@@ -2835,6 +2899,101 @@ def render_day_replay_index() -> str:
       .memory-pipe-stage:not(:last-child)::after { animation: none; }
       .memory-replay-btn { transition: none; }
     }
+    /* ===== 双屏对比页（左基线贪心 / 右我方 AutoSolver，同一时间轴对照） ===== */
+    .compare-grid { display: flex; flex-direction: column; gap: 12px; }
+    .compare-stage-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .compare-panel { display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: #fff; }
+    .compare-panel[data-algo="baseline"] { box-shadow: inset 0 3px 0 #f1a5a5; }
+    .compare-panel[data-algo="ours"] { box-shadow: inset 0 3px 0 #5eead4; }
+    .compare-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+    .compare-algo { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+    .compare-algo b { font-weight: 800; }
+    .compare-badge { font: 800 11px var(--font); padding: 2px 9px; border-radius: 999px; color: #fff; }
+    .compare-badge[data-algo="baseline"] { background: #dc2626; }
+    .compare-badge[data-algo="ours"] { background: #0f766e; }
+    .compare-mini { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+    .compare-mini b { color: var(--ink); }
+    .compare-mini .cmp-bad { color: #dc2626; }
+    .compare-mini .cmp-good { color: #0f766e; }
+    .compare-grid [data-control="mode"] { display: none; } /* 每屏各画单一算法，隐藏“对比/叠加”模式选择 */
+    .compare-map { height: 460px; background: #e8eef2; }
+    .compare-map.leaflet-container { background: #e8eef2; }
+    .compare-bottom { display: grid; grid-template-columns: 1.1fr 1fr; gap: 12px; }
+    .compare-section-title { font-size: 13px; font-weight: 800; margin-bottom: 8px; }
+    .compare-hint { font-size: 11px; color: var(--muted); font-weight: 600; margin-left: 6px; }
+    .compare-scoreboard-wrap, .compare-trend-wrap { border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; background: #fff; }
+    .compare-scoreboard { display: flex; flex-direction: column; gap: 4px; }
+    .cmp-row { display: grid; grid-template-columns: 1.3fr 1fr 1fr 1.1fr; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 8px; font-size: 12.5px; }
+    .cmp-row.cmp-head { color: var(--muted); font-weight: 700; font-size: 11px; }
+    .cmp-row .cmp-b { color: #b91c1c; font: 800 13px var(--mono); }
+    .cmp-row .cmp-o { color: #0f766e; font: 800 13px var(--mono); }
+    .cmp-row .cmp-gap { font-weight: 800; font-size: 12px; text-align: right; }
+    .cmp-row[data-cmp="win"] { background: rgba(16,185,129,.09); }
+    .cmp-row[data-cmp="win"] .cmp-gap { color: #059669; }
+    .cmp-row[data-cmp="lose"] { background: rgba(220,38,38,.07); }
+    .cmp-row[data-cmp="lose"] .cmp-gap { color: #dc2626; }
+    .cmp-row[data-cmp="tie"] .cmp-gap { color: var(--muted); }
+    .compare-fs-wrap { display: flex; flex-direction: column; gap: 12px; }
+    .compare-legend-bar { border: 1px solid var(--line); border-radius: 12px; padding: 6px 12px; background: #fff; }
+    .compare-legend-bar .map-legend { position: static; box-shadow: none; border: 0; padding: 0; max-width: none; background: transparent; gap: 10px 14px; }
+    .compare-trends { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .cmp-mini-card { border: 1px solid var(--line); border-radius: 10px; padding: 6px 9px 4px; background: #fff; }
+    .cmp-mini-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
+    .cmp-mini-head b { font-size: 12px; font-weight: 800; }
+    .cmp-mini-vals { font-size: 11px; color: var(--muted); white-space: nowrap; }
+    .cmp-mini-vals .cmp-b { color: #b91c1c; font: 800 12px var(--mono); font-style: normal; }
+    .cmp-mini-vals .cmp-o { color: #0f766e; font: 800 12px var(--mono); font-style: normal; }
+    .cmp-mini-vals .cmp-mini-gap { color: #059669; font-style: normal; font-weight: 800; }
+    .cmp-mini-svg { width: 100%; height: 44px; display: block; }
+    .compare-sameorder { border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; background: #fff; }
+    .compare-sameorder-caption { font-size: 11px; color: var(--muted); font-weight: 600; margin-left: 8px; }
+    .compare-sameorder-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; max-height: 300px; overflow: auto; padding: 2px; }
+    .cso-empty { color: var(--muted); font-size: 13px; padding: 10px 4px; line-height: 1.7; }
+    .compare-sameorder-card { border: 1px solid var(--line); border-radius: 12px; background: #fff; padding: 9px 11px; cursor: pointer; transition: box-shadow .16s ease, border-color .16s ease, transform .08s ease; }
+    .compare-sameorder-card:hover { border-color: var(--line-strong); box-shadow: 0 5px 14px rgba(15,23,42,.10); transform: translateY(-1px); }
+    .compare-sameorder-card[data-selected="1"] { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(15,118,110,.38), 0 6px 16px rgba(15,23,42,.12); }
+    .cso-head { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+    .cso-head b { font: 800 13px var(--mono); color: var(--ink); }
+    .cso-merchant { font-size: 11px; color: var(--muted); }
+    .cso-tag { margin-left: auto; font: 800 10.5px var(--font); padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+    .cso-tag[data-kind="diverge"] { background: rgba(37,99,235,.12); color: #1d4ed8; }
+    .cso-tag[data-kind="same"] { background: rgba(100,116,139,.14); color: #475569; }
+    .cso-body { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .cso-col { border: 1px solid var(--line); border-radius: 9px; padding: 7px 8px; background: #fbfcfd; }
+    .cso-col[data-algo="baseline"] { box-shadow: inset 0 2px 0 #f1a5a5; }
+    .cso-col[data-algo="ours"] { box-shadow: inset 0 2px 0 #5eead4; }
+    .cso-col-head { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+    .cso-rider { font: 800 11.5px var(--mono); color: var(--ink); }
+    .cso-phase { font-size: 11.5px; color: var(--ink-2); margin-bottom: 4px; }
+    .cso-phase b { font-weight: 800; }
+    .cso-phase[data-phase="deliver"] b { color: #0f766e; }
+    .cso-phase[data-phase="pickup"] b { color: #ea580c; }
+    .cso-phase[data-phase="completed"] b { color: #16a34a; }
+    .cso-phase[data-phase="pending"], .cso-phase[data-phase="waiting"] { color: var(--muted); }
+    .cso-bar { display: block; height: 5px; border-radius: 999px; background: #eef1f4; overflow: hidden; margin-bottom: 5px; }
+    .cso-bar i { display: block; height: 100%; border-radius: 999px; }
+    .cso-col[data-algo="baseline"] .cso-bar i { background: #dc2626; }
+    .cso-col[data-algo="ours"] .cso-bar i { background: #0f766e; }
+    .cso-bar[data-phase="pending"] i, .cso-bar[data-phase="waiting"] i { background: #cbd5e1; }
+    .cso-metric { font-size: 11px; color: var(--muted); }
+    .cso-metric b { color: var(--ink); font: 800 12px var(--mono); }
+    .cso-foot { margin-top: 7px; padding-top: 6px; border-top: 1px dashed var(--line); font: 800 12px var(--font); }
+    .cso-foot[data-tone="win"] { color: #059669; }
+    .cso-foot[data-tone="lose"] { color: #dc2626; }
+    .cso-foot[data-tone="tie"] { color: var(--muted); }
+    /* 双屏全屏：控件+两图+图例+指标一起铺满，地图占据剩余高度 */
+    .compare-fs-wrap[data-fullscreen="true"] { height: 100vh; box-sizing: border-box; padding: 10px 14px; gap: 8px; background: var(--bg, #eef1f4); overflow: hidden; }
+    .compare-fs-wrap[data-fullscreen="true"] .control-dock,
+    .compare-fs-wrap[data-fullscreen="true"] .compare-sameorder,
+    .compare-fs-wrap[data-fullscreen="true"] .compare-legend-bar { flex: 0 0 auto; }
+    .compare-fs-wrap[data-fullscreen="true"] .compare-stage-row { flex: 1 1 auto; min-height: 0; }
+    .compare-fs-wrap[data-fullscreen="true"] .compare-panel { min-height: 0; }
+    .compare-fs-wrap[data-fullscreen="true"] .compare-map { flex: 1 1 auto; height: auto; min-height: 0; }
+    .compare-fs-wrap[data-fullscreen="true"] .compare-bottom { flex: 0 0 auto; max-height: 30vh; overflow: auto; }
+    .compare-fs-wrap[data-fullscreen="true"] .compare-sameorder { padding: 8px 12px; }
+    .compare-fs-wrap[data-fullscreen="true"] .compare-sameorder-grid { display: flex; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; max-height: none; padding-bottom: 4px; }
+    .compare-fs-wrap[data-fullscreen="true"] .compare-sameorder-card { flex: 0 0 320px; }
+    @media (max-width: 1100px) { .compare-stage-row, .compare-bottom { grid-template-columns: 1fr; } .compare-map { height: 340px; } .compare-trends { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body data-shell="dispatch-workbench-shell" data-visual-system="enterprise-dispatch-v2" data-visual-polish="chinese-enterprise-workbench-v3" data-density="high-information" data-secret-handling="env-only-redacted">
@@ -2920,9 +3079,19 @@ def render_day_replay_index() -> str:
         module: "运力池",
         outcome: "供给盘点 + 负载判断",
         subtitle: "骑手班次、在线状态、位置、负载和任务链统一盘点。"
+      },
+      compare: {
+        icon: "比",
+        title: "双屏对比",
+        navLabel: "双屏对比",
+        navRole: "对比验证",
+        navHint: "同一时间轴，左基线贪心 vs 右我方算法，一眼看出差距。",
+        module: "对比验证",
+        outcome: "双屏对照 + 指标分化",
+        subtitle: "同一批订单、同一条时间轴：左侧最近贪心基线，右侧我方 AutoSolver，下方指标实时分化。"
       }
     };
-    const routeOrder = ["live", "decisions", "memory", "orders", "riders"];
+    const routeOrder = ["live", "compare", "decisions", "memory", "orders", "riders"];
     const inferenceState = {
       started: false,
       running: false,
@@ -3931,6 +4100,8 @@ def render_day_replay_index() -> str:
     }
 
     function renderLiveRuntimeState() {
+      // 双屏对比页与实时页共用 inferenceState 时间轴与播放控件：在对比页时把运行态派发到对比渲染。
+      if (document.querySelector("[data-page='compare']")) { renderCompareRuntimeState(false); return; }
       const liveGrid = document.querySelector("[data-page='live']");
       if (!liveGrid) return;
       const inferenceFinished = inferenceState.started && inferenceState.currentTimeS >= workbench.timeline.end_s;
@@ -4108,10 +4279,12 @@ def render_day_replay_index() -> str:
       const view = document.getElementById("route-view");
       if (routeId !== "live") stopLiveRuntime();
       if (routeId !== "memory") teardownMemoryPage();
+      if (routeId !== "compare") teardownCompare(); // 离开对比页：销毁两张对比地图
       destroyLiveMap();
       view.dataset.routeView = routeId;
       const renderers = {
         live: renderLivePage,
+        compare: renderComparePage,
         decisions: renderDecisionsPage,
         memory: renderMemoryPage,
         orders: renderOrdersPage,
@@ -4120,6 +4293,8 @@ def render_day_replay_index() -> str:
       view.innerHTML = renderers[routeId]();
       if (routeId === "live") {
         hydrateLivePage();
+      } else if (routeId === "compare") {
+        hydrateComparePage();
       } else if (routeId === "decisions") {
         hydrateDecisionPage();
       } else if (routeId === "memory") {
@@ -4243,10 +4418,10 @@ def render_day_replay_index() -> str:
             <div class="memory-command-copy">
               <span class="memory-kicker">长期记忆 · 自主学习</span>
               <h3>看见系统越跑越聪明</h3>
-              <p>每轮派单结束后，结果经 Reflexion 反思回写进经验库（Write）；再次遇到相似场景时，先做元数据过滤、再按相似度召回历史经验注入决策（Read）——签名不同但足够相似的新场景，也能迁移复用旧经验；跨轮经验被提炼成画像与全局策略（Reflection）。下面全部数据来自同一天基线与我方的双跑对比，逐轮可复现。</p>
+              <p>每轮派单结束后，结果经反思回写（Reflexion）进经验库（Write）；再次遇到相似场景时，先做元数据过滤、再按相似度召回历史经验注入决策（Read）——签名不同但足够相似的新场景，也能迁移复用旧经验；跨轮经验被提炼成画像与全局策略（Reflection）。下面全部数据来自同一天基线与我方的双跑对比，逐轮可复现。</p>
               <div class="memory-term-row">
-                <span>Read / Write / Reflection</span>
-                <span>Reflexion 反思回写</span>
+                <span>Read 读 / Write 写 / Reflection 提炼</span>
+                <span>反思回写</span>
                 <span>检索增强决策</span>
                 <span>记忆注入时机</span>
               </div>
@@ -4258,7 +4433,7 @@ def render_day_replay_index() -> str:
           <section class="card memory-curve-card" id="memory-curve-card">
             <div class="card-head">
               <h3>全天学习曲线</h3>
-              <span>记忆沉淀 → 复遇召回 → 收益放大；下方细带为记忆置信度；点击圆点定位数据表，再点一次取消</span>
+              <span>上：累计节省（对比贪心基线）；下：记忆置信度 · 点击圆点/表格行联动，再点取消</span>
               <div class="memory-curve-head-controls">
                 <span id="memory-replay-clock" class="memory-replay-clock"></span>
                 <button type="button" id="memory-replay-btn" class="memory-replay-btn" data-state="idle">▶ 回放全天学习过程</button>
@@ -4269,14 +4444,23 @@ def render_day_replay_index() -> str:
                 <div id="memory-curve-tooltip" class="memory-curve-tooltip" data-open="0"></div>
               </div>
               <div class="memory-curve-legend">
-                <span class="lg"><i data-kind="line-saved"></i>累计节省（分钟）</span>
-                <span class="lg"><i data-kind="line-conf"></i>记忆置信度（回写后）</span>
-                <span class="lg"><i data-kind="novel"></i>新经验沉淀 · 冷启动 / 低相似借鉴</span>
+                <span class="lg"><i data-kind="line-saved"></i>线 · 累计节省（分钟）</span>
+                <span class="lg"><i data-kind="line-conf"></i>线 · 记忆置信度（回写后）</span>
+                <span class="lg"><i data-kind="novel"></i>低经验轮 · 冷启动 / 低相似借鉴</span>
                 <span class="lg"><i data-kind="transfer"></i>高相似迁移 · 旧经验当主力直接搬用</span>
-                <span class="lg"><i data-kind="reuse"></i>同景复遇 · 记忆完全命中</span>
+                <span class="lg"><i data-kind="reuse"></i>同景复遇 · 场景完全命中</span>
                 <span class="lg"><i data-kind="shock"></i>冲击时段</span>
               </div>
-              <p class="memory-method-note">方法说明：场景按签名「时段 | 天气 | 拥堵 | 运力 | 冲击」归类，记忆相关性是<b>连续相似度</b>而非有无二值（与 Mem0 / Generative Agents 等主流记忆框架的检索思想一致）。签名完全命中记为“同景复遇”；签名首现时与已有场景算加权相似度（权重与召回打分同源：时段 0.18 / 天气 0.14 / 拥堵 0.14 / 运力 0.18 / 冲击 0.14，同景加成 0.22）：相似度 ≥ 0.5 记“高相似迁移”（旧经验当主力直接搬用）、0 到 0.5 之间记“低相似借鉴”（旧经验只当辅助，主要靠本轮新沉淀）、当天无任何历史记“冷启动”。“可借鉴经验”= 强相关（相似度 ≥ 0.5，同景 + 相似）轮数，低相似借鉴轮额外标注弱相关轮数；召回时先在经验池粗筛、再按相似度精选 Top-K 注入。节省分钟数来自基线（最近距离贪心）与我方在同一天、同一订单流上的逐轮对比。</p>
+              <div class="memory-method-note">
+                <b>方法说明</b>
+                <ul>
+                  <li>场景签名 = 时段｜天气｜拥堵｜运力｜冲击 五个维度的组合；签名完全命中记“同景复遇”。</li>
+                  <li>签名首次出现时与已有场景算加权相似度（五维权重见下方“召回链路①”）：≥ 0.5 记“高相似迁移”（旧经验当主力），0～0.5 记“低相似借鉴”（旧经验只当辅助），当天无历史记“冷启动”（仍可用跨天通用案例）。</li>
+                  <li>“可借鉴历史轮数”= 此前相似度 ≥ 0.5 的决策轮数（同景 + 相似场景）；召回先粗筛、再按相似度注入精选案例。</li>
+                  <li>节省分钟数 = 与贪心基线在同一天、同一批单上逐轮对比；×${fmtNumber(evidence.gainRatio, 1)} = 有记忆的轮 vs 没记忆的轮，每轮省时之比。</li>
+                </ul>
+                <span>记忆相关性是连续分数而非“有/无”二值——与 Mem0、Generative Agents 等主流记忆框架的检索思想一致。</span>
+              </div>
               <details class="memory-round-table-wrap">
                 <summary>查看全部 ${memoryLearningRounds().length} 轮决策数据表（点击行/圆点互相定位并高亮，再点同一处取消）</summary>
                 <div class="table-scroll">${renderMemoryRoundTable()}</div>
@@ -4286,9 +4470,14 @@ def render_day_replay_index() -> str:
           <section class="card memory-matrix-card" id="memory-matrix-card">
             <div class="card-head">
               <h3>场景经验库 · 沉淀与复用</h3>
-              <span>每行一类场景：空心橙点=冷启动/低相似借鉴开局，空心蓝点=高相似迁移开局（旧经验直接搬用），实心点=同景复遇（点越大该轮节省越多）；点击行查看召回链路，再点取消选择</span>
+              <span>每行一类场景，看经验如何沉淀并被反复复用；点击行联动召回链路，再点取消</span>
             </div>
             <div class="card-body">
+              <div class="memory-curve-legend memory-matrix-legend">
+                <span class="lg"><i data-kind="novel"></i>空心橙 · 低经验开局（冷启动/低相似借鉴）</span>
+                <span class="lg"><i data-kind="transfer"></i>空心蓝 · 高相似迁移开局</span>
+                <span class="lg"><i data-kind="reuse"></i>实心绿 · 同景复遇（点越大该轮省得越多）</span>
+              </div>
               <div id="memory-matrix" class="memory-matrix-rows">
                 ${renderMemoryMatrixRows()}
               </div>
@@ -5567,16 +5756,15 @@ def render_day_replay_index() -> str:
     let memoryPipelineTimers = [];
     let memoryResizeHandler = null;
 
-    // 真实召回打分权重，与 memory_engine._feature_similarity 一致（合计 1.0）。
+    // 场景相似度五维权重（合计 0.78，同景完全命中另加 0.22）：由召回引擎的八项细分权重归并——
+    // 拥堵=拥堵水平0.06+交通画像0.08，运力=运力压力0.10+接单意愿0.08，冲击=订单压力0.14，
+    // 同景加成=场景ID 0.22。与「方法说明」及三态判定所用权重同名同值。
     const memorySimilarityWeights = [
-      ["场景ID", 0.22],
-      ["时段类型", 0.18],
+      ["时段", 0.18],
+      ["运力", 0.18],
       ["天气", 0.14],
-      ["订单压力", 0.14],
-      ["运力压力", 0.10],
-      ["接单意愿", 0.08],
-      ["交通画像", 0.08],
-      ["拥堵水平", 0.06]
+      ["拥堵", 0.14],
+      ["冲击", 0.14]
     ];
     const memoryShockNames = {
       "S-rain-lunch": "降雨",
@@ -5697,29 +5885,32 @@ def render_day_replay_index() -> str:
       return memoryStateLabels[round.state] || round.state;
     }
 
+    // 徽章/标注一律不带“第 N 次”组内计数——按分组重置的次数会被读成强度信号，
+    // 相邻轮忽大忽小像“经验清零”；强度一律交给单调递增的“可借鉴历史轮数”表达。
     function memoryRoundShortState(round) {
-      if (!round) return "-";
-      if (round.state === "repeat") return `同景第 ${round.encounter} 次复遇`;
       return memoryRoundStateLabel(round);
     }
 
     function memoryRoundStateDetail(round) {
       if (!round) return "";
-      if (round.state === "cold") return "当天首轮 · 记忆库为空";
+      if (round.state === "cold") return "当天首轮 · 无当天经验，用跨天通用案例";
       if (round.state === "partial" || round.state === "transfer") {
         const dims = (round.matchedDims || []).join("、") || "-";
         return `← ${memorySignatureTitle(round.transferFrom)} · 相似 ${fmtNumber(round.transferSim, 2)}（匹配：${dims}）`;
       }
-      return `本景第 ${round.encounter} 次 · 首现 ${round.firstSeenLabel}`;
+      return `首现 ${round.firstSeenLabel} · 本景已积累 ${round.encounter} 轮`;
     }
 
     function memoryPoolText(round) {
       const pool = round && round.experiencePool;
       if (!pool) return "0 轮";
       if (!pool.total) {
+        if (round.state === "cold") return "当天 0 轮 · 用跨天通用案例";
         // 无强相关时展示弱相关，避免“低相似借鉴却写着可借鉴 0 轮”的自相矛盾。
-        return pool.weak ? `弱相关 ${pool.weak} 轮（无 ≥0.5 强相关）` : "0 轮";
+        return pool.weak ? `仅弱相关 ${pool.weak} 轮（相似度不足 0.5）` : "0 轮";
       }
+      if (!pool.same) return `${pool.total} 轮（均为相似场景）`;
+      if (!pool.similar) return `${pool.total} 轮（均为同景）`;
       return `${pool.total} 轮（同景 ${pool.same} + 相似 ${pool.similar}）`;
     }
 
@@ -5872,39 +6063,28 @@ def render_day_replay_index() -> str:
       return `${p.phase} / ${p.weather} / ${p.congestion} / ${p.supply} / ${p.shock}`;
     }
 
-    function memoryCaseName(caseId) {
-      const text = String(caseId || "");
-      if (text.startsWith("current-")) return "本轮新写入";
-      const parts = text.split("-");
-      const prefixLabels = { steady: "平稳", shock: "冲击", similar: "相似" };
-      const prefix = prefixLabels[parts[0]] || parts[0];
-      const scene = memoryScenarioToken(parts.slice(1, -1).join("-"));
-      const num = parts[parts.length - 1];
-      return `${prefix}·${scene} #${num}`;
-    }
-
     function renderMemoryEvidenceTiles(evidence) {
       const ratioText = evidence.gainRatio > 0 ? `×${fmtNumber(evidence.gainRatio, 1)}` : "-";
       return `
-        <div class="memory-evidence-tile" data-tone="gain">
+        <div class="memory-evidence-tile" data-tone="gain" style="cursor: help;" title="全天 64 轮里只有 ${evidence.lowRounds.length} 轮没记忆可用（冷启动 ${evidence.coldRounds.length} + 低相似 ${evidence.partialRounds.length}）；其余 ${evidence.transferRounds.length + evidence.repeatRounds.length} 轮靠记忆，贡献了全天 ${fmtNumber(evidence.memoryShare, 0)}% 的节省。">
           <span>全天累计节省</span>
           <b><span id="memory-tile-cum">${fmtNumber(evidence.totalSaved, 1)}</span> <em>分钟</em></b>
-          <small>低经验开局仅 ${evidence.lowRounds.length} 轮（冷启动 ${evidence.coldRounds.length} + 低相似借鉴 ${evidence.partialRounds.length}）；记忆参与的 ${evidence.transferRounds.length + evidence.repeatRounds.length} 轮贡献 ${fmtNumber(evidence.memorySaved, 1)} 分钟（${fmtNumber(evidence.memoryShare, 0)}%）</small>
+          <small>${fmtNumber(evidence.memoryShare, 0)}% 来自有记忆可用的轮</small>
         </div>
-        <div class="memory-evidence-tile" data-tone="gain">
-          <span>记忆参与增益</span>
+        <div class="memory-evidence-tile" data-tone="gain" style="cursor: help;" title="同一套算法、同一天、同一批 207 单，只按「当时有没有可用旧经验」把 64 轮分两组对照：有记忆可借的轮每轮省 ${fmtNumber(evidence.avgMemory, 1)} 分钟，没记忆的只省 ${fmtNumber(evidence.avgLow, 1)} 分钟，差约 ${fmtNumber(evidence.gainRatio, 1)} 倍——省下的时间主要靠记忆，不靠算法或碰运气。">
+          <span>记忆主导省时</span>
           <b id="memory-tile-gain">${ratioText}</b>
-          <small>低经验开局均省 ${fmtNumber(evidence.avgLow, 1)} 分钟/轮 → 记忆参与（迁移+复遇）均省 ${fmtNumber(evidence.avgMemory, 1)} 分钟/轮</small>
+          <small>有记忆的轮省 ${fmtNumber(evidence.avgMemory, 1)} 分钟，没记忆的只省 ${fmtNumber(evidence.avgLow, 1)} 分钟</small>
         </div>
-        <div class="memory-evidence-tile" data-tone="memory">
+        <div class="memory-evidence-tile" data-tone="memory" style="cursor: help;" title="每轮按实际收益强化或抑制策略置信度，全天从 ${fmtNumber(evidence.confStart, 2)} 升到 ${fmtNumber(evidence.confPeak, 2)}。">
           <span>置信度学习轨迹</span>
           <b id="memory-tile-conf">${fmtNumber(evidence.confStart, 2)} → ${fmtNumber(evidence.confPeak, 2)}</b>
-          <small>Reflexion 回写按每轮实际收益强化或抑制策略置信度</small>
+          <small>反思回写让策略越用越准</small>
         </div>
-        <div class="memory-evidence-tile" data-tone="memory">
+        <div class="memory-evidence-tile" data-tone="memory" style="cursor: help;" title="${evidence.itemCount} 条记忆事件：冷启动 ${evidence.coldRounds.length} / 低相似 ${evidence.partialRounds.length} / 高相似迁移 ${evidence.transferRounds.length} / 同景复遇 ${evidence.repeatRounds.length}。">
           <span>经验库规模</span>
           <b id="memory-tile-lib">${evidence.sceneCount} <em>类场景</em></b>
-          <small><span id="memory-tile-lib-sub">${evidence.itemCount} 条记忆事件 · 冷启动 ${evidence.coldRounds.length} / 低相似借鉴 ${evidence.partialRounds.length} / 迁移 ${evidence.transferRounds.length} / 复遇 ${evidence.repeatRounds.length}</span></small>
+          <small><span id="memory-tile-lib-sub">累计沉淀 ${evidence.itemCount} 条记忆</span></small>
         </div>
       `;
     }
@@ -5923,7 +6103,7 @@ def render_day_replay_index() -> str:
       `).join("");
       return `
         <table class="memory-round-table">
-          <thead><tr><th>时间</th><th>场景</th><th>记忆状态</th><th>本轮节省(分)</th><th>累计节省(分)</th><th>置信度回写</th><th>可借鉴经验</th></tr></thead>
+          <thead><tr><th>时间</th><th>场景</th><th>记忆状态</th><th>本轮节省(分钟)</th><th>累计节省(分钟)</th><th>置信度回写</th><th>可借鉴历史轮数</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       `;
@@ -5943,29 +6123,28 @@ def render_day_replay_index() -> str:
           const x1 = firstPct * 10;
           const x2 = pct * 10;
           const peakY = Math.max(6, 40 - Math.min(30, 8 + (x2 - x1) * 0.035));
-          return `<path d="M ${x1.toFixed(1)} 40 Q ${((x1 + x2) / 2).toFixed(1)} ${peakY.toFixed(1)} ${x2.toFixed(1)} 40"></path>`;
+          // 弧线记录目标复遇轮的时间：回放时未到该时刻的弧线不显示，避免“剧透未来”
+          return `<path data-time-s="${round.timeS}" d="M ${x1.toFixed(1)} 40 Q ${((x1 + x2) / 2).toFixed(1)} ${peakY.toFixed(1)} ${x2.toFixed(1)} 40"></path>`;
         }).join("");
         const dots = group.rounds.map((round) => {
           const pct = (round.timeS - startS) / spanS * 100;
           const size = 8 + Math.sqrt(round.deltaSaved / maxDelta) * 13;
           const transferNote = round.state === "transfer" ? ` · 借用「${memorySignatureTitle(round.transferFrom)}」经验（相似 ${fmtNumber(round.transferSim, 2)}）` : "";
-          const tip = `${round.timeLabel} · ${memoryRoundShortState(round)}${transferNote} · 可借鉴 ${memoryPoolText(round)} · 本轮 ${fmtSigned(round.deltaSaved, 1)} 分钟 · 置信度 ${fmtNumber(round.confidenceBefore, 2)}→${fmtNumber(round.confidenceAfter, 2)}`;
-          return `<i class="memory-matrix-dot" data-state="${escapeHtml(round.state)}" data-time-s="${round.timeS}" style="left:${pct.toFixed(2)}%;width:${size.toFixed(1)}px;height:${size.toFixed(1)}px;" title="${escapeHtml(tip)}"></i>`;
+          const tip = `${round.timeLabel} · ${memoryRoundShortState(round)}${transferNote} · 可借鉴 ${memoryPoolText(round)} · 本轮 ${fmtSigned(round.deltaSaved, 1)} 分钟 · 置信度 ${fmtNumber(round.confidenceBefore, 2)}→${fmtNumber(round.confidenceAfter, 2)} · 点击解剖这一轮`;
+          return `<i class="memory-matrix-dot" data-state="${escapeHtml(round.state)}" data-time-s="${round.timeS}" data-round-index="${round.index}" role="button" tabindex="0" style="left:${pct.toFixed(2)}%;width:${size.toFixed(1)}px;height:${size.toFixed(1)}px;" title="${escapeHtml(tip)}"></i>`;
         }).join("");
         const firstRound = group.rounds[0];
         let openLabel;
-        if (firstRound.state === "transfer") {
-          openLabel = `高相似迁移开局 ${firstRound.timeLabel} ← ${memorySignatureTitle(firstRound.transferFrom)}`;
-        } else if (firstRound.state === "partial") {
-          openLabel = `低相似借鉴开局 ${firstRound.timeLabel} ← ${memorySignatureTitle(firstRound.transferFrom)}（相似 ${fmtNumber(firstRound.transferSim, 2)}）`;
+        if (firstRound.state === "transfer" || firstRound.state === "partial") {
+          openLabel = `${memoryStateLabels[firstRound.state]}开局 ${firstRound.timeLabel}（借自「${memorySignatureTitle(firstRound.transferFrom)}」· 相似 ${fmtNumber(firstRound.transferSim, 2)}）`;
         } else {
           openLabel = `冷启动开局 ${firstRound.timeLabel}`;
         }
         return `
-          <div class="memory-matrix-row" data-signature="${escapeHtml(group.signature)}" data-selected="${group.signature === selectedSig ? 1 : 0}" role="button" tabindex="0" aria-label="${escapeHtml(memorySignatureFull(group.signature))}">
+          <div class="memory-matrix-row" data-signature="${escapeHtml(group.signature)}" data-first-time-s="${group.rounds[0].timeS}" data-selected="${group.signature === selectedSig ? 1 : 0}" role="button" tabindex="0" aria-label="${escapeHtml(memorySignatureFull(group.signature))}">
             <div class="memory-matrix-name">
               <strong>${escapeHtml(memorySignatureTitle(group.signature))}</strong>
-              <span>${escapeHtml(`${parts.supply} · ${openLabel} · 复遇 ${group.rounds.length - 1} 次`)}</span>
+              <span>${escapeHtml(`${parts.supply} ｜ ${openLabel} ｜ 复遇 ${group.rounds.length - 1} 次`)}</span>
             </div>
             <div class="memory-matrix-lane">
               <svg class="lane-arcs" viewBox="0 0 1000 52" preserveAspectRatio="none" aria-hidden="true">${arcs}</svg>
@@ -5973,8 +6152,8 @@ def render_day_replay_index() -> str:
               ${dots}
             </div>
             <div class="memory-matrix-total">
-              <b>${fmtSigned(group.totalSaved, 1)} 分钟</b>
-              <span>复用贡献 ${fmtNumber(group.reuseSaved, 1)} 分 · 置信峰值 ${fmtNumber(group.peakConfidence, 2)}</span>
+              <b data-total-sig="${escapeHtml(group.signature)}">${fmtSigned(group.totalSaved, 1)} 分钟</b>
+              <span data-sub-sig="${escapeHtml(group.signature)}">复用贡献 ${fmtNumber(group.reuseSaved, 1)} 分钟 · 置信峰值 ${fmtNumber(group.peakConfidence, 2)}</span>
             </div>
           </div>
         `;
@@ -6039,7 +6218,15 @@ def render_day_replay_index() -> str:
       `;
     }
 
+    // 点选了矩阵里的具体圆点时，精确解剖那一轮；否则退回“所选场景中省得最多的一轮”
+    let memoryPipelineRoundIndex = null;
+
     function memoryPipelineRound() {
+      const rounds = memoryLearningRounds();
+      if (memoryPipelineRoundIndex != null) {
+        const picked = rounds.find((r) => r.index === memoryPipelineRoundIndex);
+        if (picked) return picked;
+      }
       const groups = memorySignatureGroups();
       if (!groups.length) return null;
       const fallbackSig = (memoryEvidence().bestRound || groups[0].rounds[0]).signature;
@@ -6050,14 +6237,29 @@ def render_day_replay_index() -> str:
       return pool.reduce((sel, r) => (r.deltaSaved > (sel ? sel.deltaSaved : -1) ? r : sel), null);
     }
 
+    // 本轮“当天可借鉴”的具体历史轮（都在本轮之前，时间方向永远向过去）
+    function memoryBorrowableRounds(round) {
+      const rounds = memoryLearningRounds();
+      return rounds.filter((r) => {
+        if (r.index >= round.index) return false;
+        if (r.signature === round.signature) return true;
+        return memorySignatureSimilarity(round.signature, r.signature) >= memoryTransferThreshold;
+      });
+    }
+
     function renderMemoryPipeline() {
       const round = memoryPipelineRound();
       const host = document.getElementById("memory-pipeline");
       const caption = document.getElementById("memory-pipeline-caption");
       if (!host || !round) return;
       if (caption) {
-        caption.textContent = `${round.timeLabel} 决策轮 · ${memorySignatureTitle(round.signature)} · ${memoryRoundShortState(round)}`;
+        const pickNote = memoryPipelineRoundIndex != null ? "（点选轮）" : "（该场景省得最多的一轮，点圆点可精确切换）";
+        caption.textContent = `${round.timeLabel} 决策轮 · ${memorySignatureTitle(round.signature)} · ${memoryRoundShortState(round)} ${pickNote}`;
       }
+      // 同步矩阵点的“正在解剖”标记
+      for (const dotNode of document.querySelectorAll(".memory-matrix-dot[data-picked='1']")) dotNode.dataset.picked = "0";
+      const pickedDot = document.querySelector(`.memory-matrix-dot[data-round-index="${round.index}"]`);
+      if (pickedDot) pickedDot.dataset.picked = "1";
       const maxWeight = memorySimilarityWeights[0][1];
       const simBars = memorySimilarityWeights.map(([label, weight]) => `
         <div class="memory-sim-bar">
@@ -6066,17 +6268,24 @@ def render_day_replay_index() -> str:
           <b>${(weight * 100).toFixed(0)}%</b>
         </div>
       `).join("");
-      const caseChips = round.recalledCases.map((id) => `<span data-case-id="${escapeHtml(id)}" title="点击定位该案例来自哪类场景经验，再点一次取消高亮" role="button" tabindex="0">${escapeHtml(memoryCaseName(id))}</span>`).join("")
-        || "<span>暂无历史案例</span>";
+      // 跨天案例来自往日推演沉淀的记忆库，不在当天时间轴上——不做当天矩阵映射，只标注来源
+      // 当天可借鉴的具体轮次（全部发生在本轮之前），点击可在场景经验库中精确定位那个点
+      const borrowable = memoryBorrowableRounds(round);
+      const shownBorrow = borrowable.slice(-5);
+      const borrowChips = shownBorrow.map((b) => `<span class="memory-day-chip" data-round-link="${b.index}" title="${escapeHtml(`${b.timeLabel} · ${memorySignatureTitle(b.signature)} · 点击在上方经验库中定位这一轮，再点取消`)}" role="button" tabindex="0">${escapeHtml(`${b.timeLabel} ${b.signature === round.signature ? "同景" : "相似"}`)}</span>`).join("");
+      const borrowMore = borrowable.length > shownBorrow.length ? `<span class="memory-chip-more">…共 ${borrowable.length} 轮</span>` : "";
+      // 跨天策略先验：本场景命中的、已提炼成全局规则的经验（即右侧「记忆分层·策略记忆」那一层，描述性规则，非案例编号）
+      const priorRule = round.policy ? displayMemoryText(round.policy.strategy_summary)
+        : (round.recall ? displayMemoryText(round.recall.strategy_summary) : "");
       let recallLead;
       if (round.state === "cold") {
-        recallLead = `当天首轮，场景库为空（冷启动），命中的是跨天记忆库里的 ${round.recalledCases.length} 条历史案例：`;
+        recallLead = `当天首轮、无同类经验（冷启动），直接调用跨天沉淀的策略先验：`;
       } else if (round.state === "partial") {
         recallLead = `低相似借鉴：旧经验只有「${(round.matchedDims || []).join("、")}」维度接得上（最高相似 ${fmtNumber(round.transferSim, 2)}），以本轮新沉淀为主、旧经验为辅；另有 ${round.experiencePool.weak} 轮弱相关可参考：`;
       } else if (round.state === "transfer") {
-        recallLead = `高相似迁移：该签名当天首次出现，可借鉴经验 ${memoryPoolText(round)}；从中按相似度精选 Top-${round.recalledCases.length} 注入：`;
+        recallLead = `高相似迁移：该场景组合当天首次出现，可借鉴 ${memoryPoolText(round)}，并叠加跨天沉淀的策略先验：`;
       } else {
-        recallLead = `同景第 ${round.encounter} 次复遇，可借鉴经验 ${memoryPoolText(round)}；粗筛后按相似度精选 Top-${round.recalledCases.length} 注入：`;
+        recallLead = `同景复遇（该场景此前已出现 ${round.encounter} 轮），当天可借鉴 ${memoryPoolText(round)}，并叠加跨天沉淀的策略先验：`;
       }
       const sourceChipOf = (srcRound, prefix) => `<span class="memory-transfer-chip" data-signature-link="${escapeHtml(srcRound.transferFrom)}" title="点击定位它借用的场景经验行，再点一次取消高亮" role="button" tabindex="0">${prefix} ← ${escapeHtml(memorySignatureTitle(srcRound.transferFrom))} · 相似 ${fmtNumber(srcRound.transferSim, 2)}</span>`;
       let transferChip = "";
@@ -6102,16 +6311,17 @@ def render_day_replay_index() -> str:
           <div class="pipe-step-head"><strong>① 场景编码</strong><em>元数据过滤</em></div>
           <p>${escapeHtml(memorySignatureFull(round.signature))}</p>
           <div class="memory-sim-bars">${simBars}</div>
-          <p>按以上真实权重计算与历史场景的加权相似度，相似度 ≤ 0 的经验直接过滤。</p>
+          <p>按以上权重与历史场景算加权相似度，同景完全命中另加 0.22（细分口径：拥堵=拥堵水平+交通画像，运力=运力压力+接单意愿，冲击=订单压力）。</p>
         </article>
         <article class="memory-pipe-stage" data-stage="recall" data-active="0">
           <div class="pipe-step-head"><strong>② 相似经验召回</strong><em>Read · Top-K</em></div>
           <p>${escapeHtml(recallLead)}</p>
-          <div class="memory-case-chips">${transferChip}${caseChips}</div>
+          ${borrowable.length || transferChip ? `<div class="memory-case-chips"><em class="memory-chip-group">当天可借鉴 ↩ 均早于本轮</em>${transferChip}${borrowChips}${borrowMore}</div>` : ""}
+          <div class="memory-prior-block"><em class="memory-chip-group">跨天策略先验 · 见右侧「记忆分层 · 策略记忆」</em><p class="memory-prior-rule">${escapeHtml(priorRule || "-")}</p></div>
           <p>记忆注入时机：候选算法评分之前，作为决策上下文的一部分。</p>
         </article>
         <article class="memory-pipe-stage" data-stage="decide" data-active="0">
-          <div class="pipe-step-head"><strong>③ 决策执行</strong><em>Generator-Critic</em></div>
+          <div class="pipe-step-head"><strong>③ 决策执行</strong><em>生成-评审</em></div>
           <p>${escapeHtml(strategyText)}</p>
           <div class="memory-pipe-result">
             <span>本轮派出 ${actionCount} 个动作</span>
@@ -6119,7 +6329,7 @@ def render_day_replay_index() -> str:
           </div>
         </article>
         <article class="memory-pipe-stage" data-stage="writeback" data-active="0">
-          <div class="pipe-step-head"><strong>④ 结果回写</strong><em>Reflexion · Write</em></div>
+          <div class="pipe-step-head"><strong>④ 结果回写</strong><em>反思回写 · Write</em></div>
           <div class="memory-conf-shift">
             <span>${fmtNumber(round.confidenceBefore, 2)}</span>
             <span class="conf-arrow">→</span>
@@ -6192,14 +6402,14 @@ def render_day_replay_index() -> str:
 
       // 面板标题
       pieces.push(`<text class="curve-panel-label" x="${mL}" y="16">累计节省（分钟）｜我方 vs 贪心基线</text>`);
-      pieces.push(`<text class="curve-panel-label" x="${mL}" y="${bTop - 9}">记忆置信度（Reflexion 回写后）</text>`);
+      pieces.push(`<text class="curve-panel-label" x="${mL}" y="${bTop - 9}">记忆置信度（反思回写后 · 纵轴 0.5–1.0）</text>`);
 
       if (rounds.length) {
         const first = rounds[0];
         const last = rounds[rounds.length - 1];
         // 冷启动与平峰说明
         if (first.timeS - startS > 3600) {
-          pieces.push(`<text class="curve-note" x="${(x(startS) + x(first.timeS)) / 2}" y="${yA(yMax * 0.45)}" text-anchor="middle">冷启动 · 记忆库为空</text>`);
+          pieces.push(`<text class="curve-note" x="${(x(startS) + x(first.timeS)) / 2}" y="${yA(yMax * 0.45)}" text-anchor="middle">当天冷启动 · 场景库从零累积</text>`);
         }
         let gapStart = null;
         let gapLen = 0;
@@ -6252,11 +6462,16 @@ def render_day_replay_index() -> str:
           const anchorEnd = bx > mL + plotW * 0.62;
           const tx = anchorEnd ? bx - 10 : bx + 10;
           const bestState = memoryRoundShortState(best);
+          // 尖峰成因锚注：该峰值轮若带冲击，说明基线在极端场景崩溃、我方大幅领先，避免被误读为异常暴涨
+          const bestShock = memorySignatureParts(best.signature).shock;
+          const spikeCause = bestShock && bestShock !== "无冲击" ? `${bestShock}双冲击 · 贪心基线派单崩溃` : "";
+          const calloutTop = spikeCause ? by - 64 : by - 50;
           pieces.push(`<line class="curve-callout-line" x1="${bx}" y1="${by - 8}" x2="${bx}" y2="${by - 30}"></line>`);
           pieces.push(`
-            <text class="curve-callout-text" x="${tx}" y="${by - 50}" text-anchor="${anchorEnd ? "end" : "start"}">
+            <text class="curve-callout-text" x="${tx}" y="${calloutTop}" text-anchor="${anchorEnd ? "end" : "start"}">
               <tspan x="${tx}" dy="0">${escapeHtml(memorySignatureTitle(best.signature))}</tspan>
               <tspan x="${tx}" dy="14">${escapeHtml(`${bestState} · 召回记忆后单轮 ${fmtSigned(best.deltaSaved, 1)} 分钟`)}</tspan>
+              ${spikeCause ? `<tspan x="${tx}" dy="14">${escapeHtml(spikeCause)}</tspan>` : ""}
             </text>
           `);
         }
@@ -6295,15 +6510,21 @@ def render_day_replay_index() -> str:
       [...stage.querySelectorAll("svg")].forEach((node) => node.remove());
       stage.insertAdjacentHTML("beforeend", buildMemoryCurveSvg(width));
       if (tooltip) stage.appendChild(tooltip);
-      // SVG 重建后光环随之消失，同步清掉选中状态
-      memoryLinkState.curveRound = null;
+      // SVG 重建后按新几何恢复选中态视觉（光环 + tooltip/十字线回落），保持与表格行高亮同步
+      if (memoryLinkState.selectedRound != null) {
+        const selectedItem = memoryRoundItem(memoryLinkState.selectedRound);
+        if (selectedItem) attachMemoryCurveHalo(selectedItem);
+      }
+      memoryCurvePointerLeave();
     }
 
     function memoryNearestRoundItem(clientX) {
       const stage = document.getElementById("memory-curve");
       if (!stage || !memoryCurveGeom || !memoryCurveGeom.roundXs.length) return null;
       const rect = stage.getBoundingClientRect();
-      const px = clientX - rect.left;
+      // svg 以 CSS width:100% 渲染，屏幕像素需换算回 viewBox 坐标，窄屏缩放时命中才不偏移
+      const scale = rect.width > 0 ? memoryCurveGeom.width / rect.width : 1;
+      const px = (clientX - rect.left) * scale;
       let nearest = memoryCurveGeom.roundXs[0];
       for (const item of memoryCurveGeom.roundXs) {
         if (Math.abs(item.x - px) < Math.abs(nearest.x - px)) nearest = item;
@@ -6328,69 +6549,55 @@ def render_day_replay_index() -> str:
           <span class="tip-badge" data-state="${escapeHtml(round.state)}">${escapeHtml(memoryRoundShortState(round))}</span>
         </div>
         <div class="tip-scene">${escapeHtml(memorySignatureFull(round.signature))}</div>
+        <div class="tip-row"><i class="tip-key" data-series="transfer"></i>可借鉴历史 <b>${escapeHtml(memoryPoolText(round))}</b></div>
         ${(round.state === "transfer" || round.state === "partial") ? `<div class="tip-row"><i class="tip-key" data-series="transfer"></i>${round.state === "transfer" ? "迁移来源" : "借鉴来源"} <b>${escapeHtml(`${memorySignatureTitle(round.transferFrom)} · 相似 ${fmtNumber(round.transferSim, 2)}（匹配：${(round.matchedDims || []).join("、") || "-"}）`)}</b></div>` : ""}
+        ${round.state === "repeat" ? `<div class="tip-row"><i class="tip-key" data-series="transfer"></i>同景溯源 <b>${escapeHtml(`首现 ${round.firstSeenLabel} · 本景已积累 ${round.encounter} 轮`)}</b></div>` : ""}
         <div class="tip-row"><i class="tip-key" data-series="saved"></i>本轮新增节省 <b>${fmtSigned(round.deltaSaved, 1)} 分钟</b></div>
         <div class="tip-row"><i class="tip-key" data-series="saved"></i>累计节省 <b>${fmtNumber(round.cumSaved, 1)} 分钟</b></div>
         <div class="tip-row"><i class="tip-key" data-series="conf"></i>置信度回写 <b>${fmtNumber(round.confidenceBefore, 2)} → ${fmtNumber(round.confidenceAfter, 2)}</b></div>
-        <div class="tip-row"><i class="tip-key" data-series="transfer"></i>可借鉴经验 <b>${escapeHtml(memoryPoolText(round))}</b></div>
-        <div class="tip-row"><i class="tip-key" data-series="conf"></i>精选注入 <b>Top-${round.recalledCases.length}</b></div>
+        <div class="tip-row"><i class="tip-key" data-series="conf"></i>跨天策略先验 <b>${round.policy ? "已叠加" : "—"}</b></div>
       `;
       const tipW = tooltip.offsetWidth || 230;
-      const flip = item.x + tipW + 26 > rect.width;
-      tooltip.style.left = `${flip ? Math.max(4, item.x - tipW - 14) : item.x + 14}px`;
+      // item.x 是 viewBox 坐标，tooltip 用屏幕像素定位，需按当前缩放比换算
+      const scale = memoryCurveGeom && memoryCurveGeom.width > 0 && rect.width > 0 ? rect.width / memoryCurveGeom.width : 1;
+      const screenX = item.x * scale;
+      const flip = screenX + tipW + 26 > rect.width;
+      tooltip.style.left = `${flip ? Math.max(4, screenX - tipW - 14) : screenX + 14}px`;
       tooltip.style.top = "34px";
     }
 
     function memoryCurvePointerMove(event) {
+      if (memoryReplay.running) return; // 回放中不悬停剧透未揭示的轮次
       const found = memoryNearestRoundItem(event.clientX);
-      if (found) showMemoryRoundTooltip(found.nearest);
+      // 悬停与点击共用同一命中阈值，避免“悬停有提示、点击没反应”的不一致
+      if (found && Math.abs(found.nearest.x - found.px) <= 24) showMemoryRoundTooltip(found.nearest);
+      else memoryCurvePointerLeave();
     }
 
     function memoryCurvePointerLeave() {
+      // 有选中轮时回落显示选中轮信息（悬停只是临时覆盖）；无选中才真正隐藏
+      if (memoryLinkState.selectedRound != null) {
+        const selectedItem = memoryRoundItem(memoryLinkState.selectedRound);
+        if (selectedItem) { showMemoryRoundTooltip(selectedItem); return; }
+      }
       const tooltip = document.getElementById("memory-curve-tooltip");
       const crosshair = document.getElementById("memory-crosshair");
       if (tooltip) tooltip.dataset.open = "0";
       if (crosshair) crosshair.style.display = "none";
     }
 
-    // --- 跨模块双向索引：曲线点 ↔ 数据表行、召回案例 → 场景经验行 ---
-    // 所有联动高亮都是「切换」语义：点一下=持续高亮，再点同一目标=取消恢复原状，点别的目标=切换。
+    // --- 跨模块双向索引 ---
+    // 「轮次选中」是同一份状态的两个视图：曲线上的光环/十字线/tooltip 与数据表行高亮**同亮同灭**。
+    // 点曲线圆点、点表格行都可选中同一轮；再点其中任意一侧（或点曲线空白处）即取消，点别的轮切换。
     let memoryFlashTimers = [];
-    const memoryLinkState = { tableRow: null, curveRound: null, matrixKey: null };
+    const memoryLinkState = { selectedRound: null, matrixKey: null, linkedDot: null };
 
-    function clearMemoryTableHighlight() {
-      for (const row of document.querySelectorAll('.memory-round-table tr[data-flash="1"]')) row.dataset.flash = "0";
-      memoryLinkState.tableRow = null;
+    function memoryRoundItem(roundIndex) {
+      if (!memoryCurveGeom) return null;
+      return memoryCurveGeom.roundXs.find((entry) => entry.round.index === roundIndex) || null;
     }
 
-    // 曲线点被点击 → 展开数据表、滚到对应行并持续高亮；再点同一个点则取消
-    function focusMemoryTableRow(roundIndex) {
-      if (memoryLinkState.tableRow === roundIndex) {
-        clearMemoryTableHighlight();
-        return;
-      }
-      const wrap = document.querySelector(".memory-round-table-wrap");
-      if (wrap && !wrap.open) wrap.open = true;
-      const row = document.querySelector(`.memory-round-table tr[data-round-index="${roundIndex}"]`);
-      const scroller = document.querySelector(".memory-round-table-wrap .table-scroll");
-      if (!row || !scroller) return;
-      clearMemoryTableHighlight();
-      scroller.scrollTop = Math.max(0, row.offsetTop - scroller.clientHeight / 2 + row.clientHeight / 2);
-      if (wrap) wrap.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      row.dataset.flash = "1";
-      memoryLinkState.tableRow = roundIndex;
-    }
-
-    function clearMemoryCurveHighlight() {
-      const svg = document.querySelector("#memory-curve svg");
-      const halo = svg ? svg.querySelector(".memory-focus-halo") : null;
-      if (halo) halo.remove();
-      memoryCurvePointerLeave();
-      memoryLinkState.curveRound = null;
-    }
-
-    // 数据表行被点击 → 曲线滚入视野、对应点持续光环 + 十字线 + tooltip；再点同一行则取消
-    function pulseMemoryCurveDot(item) {
+    function attachMemoryCurveHalo(item) {
       const svg = document.querySelector("#memory-curve svg");
       if (!svg || !item) return;
       const old = svg.querySelector(".memory-focus-halo");
@@ -6403,43 +6610,76 @@ def render_day_replay_index() -> str:
       svg.appendChild(circle);
     }
 
-    function focusMemoryCurveRound(roundIndex) {
-      if (!memoryCurveGeom) return;
-      if (memoryLinkState.curveRound === roundIndex) {
-        clearMemoryCurveHighlight();
-        return;
-      }
-      const item = memoryCurveGeom.roundXs.find((entry) => entry.round.index === roundIndex);
-      if (!item) return;
-      const stage = document.getElementById("memory-curve");
-      if (stage) stage.scrollIntoView({ behavior: "smooth", block: "center" });
-      showMemoryRoundTooltip(item);
-      pulseMemoryCurveDot(item);
-      memoryLinkState.curveRound = roundIndex;
-      // tooltip 短暂展示后自动收起（悬停可再看），光环作为选中态持续保留直到取消
-      memoryFlashTimers.push(setTimeout(memoryCurvePointerLeave, 3800));
+    function clearMemoryRoundSelection() {
+      for (const row of document.querySelectorAll('.memory-round-table tr[data-flash="1"]')) row.dataset.flash = "0";
+      const svg = document.querySelector("#memory-curve svg");
+      const halo = svg ? svg.querySelector(".memory-focus-halo") : null;
+      if (halo) halo.remove();
+      memoryLinkState.selectedRound = null;
+      memoryCurvePointerLeave();
     }
 
-    // 召回案例 → 它来自哪类场景经验：按案例前缀解析维度反查签名
-    // steady-<时段>=该时段无冲击场景；shock-<时段>=该时段冲击场景；similar-<天气>=同天气场景
-    function memoryCaseTargets(caseId) {
-      const text = String(caseId || "");
-      if (!text || text.startsWith("current-")) return [];
-      const parts = text.split("-");
-      const prefix = parts[0];
-      const middle = parts.slice(1, -1).join("-");
-      return memorySignatureGroups().filter((group) => {
-        const sigParts = String(group.signature).split("|");
-        if (prefix === "steady") return sigParts[0] === middle && (sigParts[4] || "steady") === "steady";
-        if (prefix === "shock") return sigParts[0] === middle && (sigParts[4] || "steady") !== "steady";
-        if (prefix === "similar") return sigParts[1] === middle;
-        return false;
-      }).map((group) => group.signature);
+    // origin: "chart"=从曲线点触发（滚动表格对齐）；"table"=从表格行触发（滚动曲线对齐）
+    function selectMemoryRound(roundIndex, origin) {
+      if (memoryLinkState.selectedRound === roundIndex) {
+        const wrap = document.querySelector(".memory-round-table-wrap");
+        if (origin === "chart" && wrap && !wrap.open) {
+          // 表格被手动收起时再点同一个点：视为“重新定位”而非取消，否则用户看不到任何反馈
+          wrap.open = true;
+          const row = document.querySelector(`.memory-round-table tr[data-round-index="${roundIndex}"]`);
+          const scroller = document.querySelector(".memory-round-table-wrap .table-scroll");
+          if (row && scroller) scroller.scrollTop = Math.max(0, row.offsetTop - scroller.clientHeight / 2 + row.clientHeight / 2);
+          wrap.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          return;
+        }
+        clearMemoryRoundSelection();
+        return;
+      }
+      clearMemoryRoundSelection();
+      memoryLinkState.selectedRound = roundIndex;
+      const row = document.querySelector(`.memory-round-table tr[data-round-index="${roundIndex}"]`);
+      if (row) {
+        row.dataset.flash = "1";
+        if (origin === "chart") {
+          const wrap = document.querySelector(".memory-round-table-wrap");
+          const scroller = document.querySelector(".memory-round-table-wrap .table-scroll");
+          if (wrap && !wrap.open) wrap.open = true;
+          if (scroller) scroller.scrollTop = Math.max(0, row.offsetTop - scroller.clientHeight / 2 + row.clientHeight / 2);
+          if (wrap) wrap.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+      }
+      const item = memoryRoundItem(roundIndex);
+      if (item) {
+        if (origin === "table") {
+          const stage = document.getElementById("memory-curve");
+          if (stage) stage.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+        attachMemoryCurveHalo(item);
+        // 选中期间 tooltip 常驻；悬停其他点会临时覆盖，移开后回落到选中轮（见 memoryCurvePointerLeave）
+        showMemoryRoundTooltip(item);
+      }
     }
 
     function clearMemoryMatrixHighlight() {
       for (const row of document.querySelectorAll('.memory-matrix-row[data-flash="1"]')) row.dataset.flash = "0";
+      for (const dot of document.querySelectorAll('.memory-matrix-dot[data-linked="1"]')) dot.dataset.linked = "0";
       memoryLinkState.matrixKey = null;
+      memoryLinkState.linkedDot = null;
+    }
+
+    // “当天可借鉴轮”芯片 → 在经验库中精确定位那一个圆点（再点同一枚取消）
+    function focusMemoryMatrixDot(roundIndex) {
+      if (memoryLinkState.linkedDot === roundIndex) {
+        clearMemoryMatrixHighlight();
+        return;
+      }
+      const dot = document.querySelector(`.memory-matrix-dot[data-round-index="${roundIndex}"]`);
+      if (!dot) return;
+      clearMemoryMatrixHighlight();
+      dot.dataset.linked = "1";
+      memoryLinkState.linkedDot = roundIndex;
+      const row = dot.closest(".memory-matrix-row");
+      if (row) row.scrollIntoView({ behavior: "smooth", block: "center" });
     }
 
     // 芯片被点击 → 来源场景行持续高亮；再点同一枚芯片则取消
@@ -6486,12 +6726,38 @@ def render_day_replay_index() -> str:
       setText("memory-tile-conf", seen.length ? `${fmtNumber(evidence.confStart, 2)} → ${fmtNumber(confPeakSeen, 2)}` : "—");
       const libTile = document.getElementById("memory-tile-lib");
       if (libTile) libTile.firstChild.textContent = String(seenSigs.size);
-      const seenLow = seen.filter((r) => r.state === "cold" || r.state === "partial").length;
+      const seenCold = seen.filter((r) => r.state === "cold").length;
+      const seenPartial = seen.filter((r) => r.state === "partial").length;
       const seenTransfer = seen.filter((r) => r.state === "transfer").length;
       const seenRepeat = seen.filter((r) => r.state === "repeat").length;
-      setText("memory-tile-lib-sub", `${seen.length * 3} 条记忆事件 · 冷启动/低相似借鉴 ${seenLow} / 迁移 ${seenTransfer} / 复遇 ${seenRepeat}`);
+      // 事件数按真实关联事件统计；回放结束回填真实总数，保证与初始渲染一致
+      const seenEvents = finished
+        ? memoryEvidence().itemCount
+        : seen.reduce((count, r) => count + [r.recall, r.writeback, r.policy].filter(Boolean).length, 0);
+      setText("memory-tile-lib-sub", `累计沉淀 ${seenEvents} 条记忆`);
       for (const dot of document.querySelectorAll(".memory-matrix-dot")) {
         dot.dataset.hidden = !finished && Number(dot.dataset.timeS) > simTimeS ? "1" : "0";
+      }
+      // 弧线只连到“已发生”的复遇：未到时刻的弧线隐藏，避免回放剧透未来
+      for (const arc of document.querySelectorAll(".memory-matrix-lane .lane-arcs path")) {
+        arc.dataset.hidden = !finished && Number(arc.dataset.timeS) > simTimeS ? "1" : "0";
+      }
+      // 尚未首现的场景整行淡化；行尾统计按“截至当前时刻”重算，全页所见即当时已发生
+      const groupsNow = memorySignatureGroups();
+      for (const group of groupsNow) {
+        const row = document.querySelector(`.memory-matrix-row[data-signature="${CSS.escape(group.signature)}"]`);
+        if (!row) continue;
+        row.dataset.future = !finished && group.rounds[0].timeS > simTimeS ? "1" : "0";
+        const upTo = finished ? group.rounds : group.rounds.filter((r) => r.timeS <= simTimeS);
+        const totalNode = row.querySelector(`[data-total-sig]`);
+        const subNode = row.querySelector(`[data-sub-sig]`);
+        const total = upTo.reduce((s, r) => s + r.deltaSaved, 0);
+        const reuse = upTo.filter((r) => r.encounter > 0).reduce((s, r) => s + r.deltaSaved, 0);
+        const peak = upTo.length ? Math.max(...upTo.map((r) => r.confidenceAfter || 0)) : 0;
+        if (totalNode) totalNode.textContent = `${fmtSigned(Math.round(total * 10) / 10, 1)} 分钟`;
+        if (subNode) subNode.textContent = upTo.length
+          ? `复用贡献 ${fmtNumber(Math.round(reuse * 10) / 10, 1)} 分钟 · 置信峰值 ${fmtNumber(peak, 2)}`
+          : "该场景尚未出现";
       }
     }
 
@@ -6505,8 +6771,15 @@ def render_day_replay_index() -> str:
     }
 
     function startMemoryReplay() {
+      clearMemoryRoundSelection(); // 回放与轮次选中互斥，避免光环/十字线叠在回放游标上
       const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      if (memoryReplay.running || reduced) {
+      if (reduced) {
+        // 减少动效偏好：不播动画、不谎报“重新回放”，直接确认终态
+        applyMemoryReplayTime(workbench.timeline.end_s, true);
+        setText("memory-replay-clock", "已直接展示全天结果");
+        return;
+      }
+      if (memoryReplay.running) {
         memoryReplay.hasRun = true;
         stopMemoryReplay(true);
         return;
@@ -6531,6 +6804,7 @@ def render_day_replay_index() -> str:
     }
 
     function hydrateMemoryPage() {
+      teardownMemoryPage(); // 幂等自清洁：同路由重进时先摘旧监听/计时器，防止 resize 监听泄漏
       drawMemoryCurve();
       renderMemoryPipeline();
       const stage = document.getElementById("memory-curve");
@@ -6538,9 +6812,12 @@ def render_day_replay_index() -> str:
         stage.addEventListener("pointermove", memoryCurvePointerMove);
         stage.addEventListener("pointerleave", memoryCurvePointerLeave);
         stage.addEventListener("click", (event) => {
+          if (memoryReplay.running) stopMemoryReplay(true); // 回放与查询互斥：点击先停到终态再选中
           const found = memoryNearestRoundItem(event.clientX);
           if (found && Math.abs(found.nearest.x - found.px) <= 24) {
-            focusMemoryTableRow(found.nearest.round.index);
+            selectMemoryRound(found.nearest.round.index, "chart");
+          } else if (memoryLinkState.selectedRound != null) {
+            clearMemoryRoundSelection(); // 点空白处 = 取消选中
           }
         });
       }
@@ -6548,7 +6825,9 @@ def render_day_replay_index() -> str:
       if (tableWrap) {
         tableWrap.addEventListener("click", (event) => {
           const row = event.target.closest("tr[data-round-index]");
-          if (row) focusMemoryCurveRound(Number(row.dataset.roundIndex));
+          if (!row) return;
+          if (memoryReplay.running) stopMemoryReplay(true); // 回放与查询互斥
+          selectMemoryRound(Number(row.dataset.roundIndex), "table");
         });
       }
       const replayBtn = document.getElementById("memory-replay-btn");
@@ -6560,22 +6839,49 @@ def render_day_replay_index() -> str:
         pipelineHost.addEventListener("click", (event) => {
           const link = event.target.closest("[data-signature-link]");
           if (link) { focusMemoryMatrixRows([link.dataset.signatureLink]); return; }
-          const chip = event.target.closest("[data-case-id]");
-          if (chip) focusMemoryMatrixRows(memoryCaseTargets(chip.dataset.caseId));
+          const dayChip = event.target.closest("[data-round-link]");
+          if (dayChip) focusMemoryMatrixDot(Number(dayChip.dataset.roundLink));
         });
         pipelineHost.addEventListener("keydown", (event) => {
           if (event.key !== "Enter" && event.key !== " ") return;
           const link = event.target.closest("[data-signature-link]");
           if (link) { event.preventDefault(); focusMemoryMatrixRows([link.dataset.signatureLink]); return; }
-          const chip = event.target.closest("[data-case-id]");
-          if (chip) { event.preventDefault(); focusMemoryMatrixRows(memoryCaseTargets(chip.dataset.caseId)); }
+          const dayChip = event.target.closest("[data-round-link]");
+          if (dayChip) { event.preventDefault(); focusMemoryMatrixDot(Number(dayChip.dataset.roundLink)); }
         });
       }
       const matrix = document.getElementById("memory-matrix");
       if (matrix) {
         matrix.addEventListener("click", (event) => {
+          if (memoryReplay.running) stopMemoryReplay(true); // 回放与查询互斥
+          // 优先命中具体圆点：解剖“这一轮”（再点同一个点取消，退回该场景省得最多的一轮）
+          const dot = event.target.closest(".memory-matrix-dot");
+          if (dot) {
+            const idx = Number(dot.dataset.roundIndex);
+            const row = dot.closest(".memory-matrix-row");
+            clearMemoryMatrixHighlight();
+            if (memoryPipelineRoundIndex === idx) {
+              memoryPipelineRoundIndex = null;
+              clearMemoryRoundSelection(); // 取消解剖时同步熄灭上方曲线对应点
+            } else {
+              memoryPipelineRoundIndex = idx;
+              if (row) {
+                memorySelectedSignature = row.dataset.signature;
+                for (const item of matrix.querySelectorAll(".memory-matrix-row")) {
+                  item.dataset.selected = item === row ? "1" : "0";
+                }
+              }
+              // 联动：点矩阵点时，上方全天曲线同步点亮同一轮（光环+十字线+tooltip），且不抢滚动
+              selectMemoryRound(idx, "silent");
+            }
+            renderMemoryPipeline();
+            return;
+          }
           const row = event.target.closest(".memory-matrix-row");
           if (!row) return;
+          clearMemoryMatrixHighlight(); // 切换选中前清掉来源定位的蓝色高亮，避免两种高亮残留叠加
+          clearMemoryRoundSelection(); // 点整行（非具体点）时清掉上方曲线的点选光环，避免残留不一致
+          memoryPipelineRoundIndex = null; // 行级选择回到“该场景代表轮”语义
           if (memorySelectedSignature === row.dataset.signature) {
             // 再点已选中的行 → 取消选择，召回链路恢复默认场景
             memorySelectedSignature = null;
@@ -6594,8 +6900,8 @@ def render_day_replay_index() -> str:
         });
         matrix.addEventListener("keydown", (event) => {
           if (event.key === "Enter" || event.key === " ") {
-            const row = event.target.closest(".memory-matrix-row");
-            if (row) { event.preventDefault(); row.click(); }
+            const target = event.target.closest(".memory-matrix-dot, .memory-matrix-row");
+            if (target) { event.preventDefault(); target.click(); }
           }
         });
       }
@@ -6619,9 +6925,10 @@ def render_day_replay_index() -> str:
       memoryPipelineTimers = [];
       memoryFlashTimers.forEach(clearTimeout);
       memoryFlashTimers = [];
-      memoryLinkState.tableRow = null;
-      memoryLinkState.curveRound = null;
+      memoryLinkState.selectedRound = null;
       memoryLinkState.matrixKey = null;
+      memoryLinkState.linkedDot = null;
+      memoryPipelineRoundIndex = null;
       if (memoryResizeHandler) {
         window.removeEventListener("resize", memoryResizeHandler);
         memoryResizeHandler = null;
@@ -6951,12 +7258,544 @@ def render_day_replay_index() -> str:
       return target?.closest?.("button")?.id === "pause-inference";
     }
 
+    // ===================== 双屏对比页（左基线贪心 / 右我方 AutoSolver） =====================
+    // 关键：v2 已有 renderLeafletMapLayers(group, routes, riders, orders) 显式渲染管线，且 workbench 内
+    // 同时携带 baseline / ours 两套真实数据（map.routes 双车道、metrics.series 双算法、frames 双侧），
+    // 因此无需引入任何“双模型切换”机制——右图直接复用实时页管线，左图新建一套对称的 baseline 管线，
+    // 两图各喂各自算法的真实 routes/riders/orders，同一条 inferenceState 时间轴、同一批 207 单。
+    let compareMapB = null, compareMapO = null, compareGroupB = null, compareGroupO = null;
+    let compareInteractingB = false, compareInteractingO = false;
+    let compareFullscreenBound = false;
+    let compareLockedOrderId = "";        // 「同单对照」锁定的订单：两图同步高亮，再点取消
+    let compareLastHeavyAt = 0;
+    const COMPARE_HEAVY_MIN_MS = 240;     // 两图重绘节流（与实时页同思路，避免每 tick 双图全量重画）
+
+    // 订单短标签（O-001…）与商家名索引，供「同单对照」卡片直接读取，与地图/路线同源。
+    const orderLabelById = Object.fromEntries((workbench.map.anchors.orders || []).map((o) => [o.id, o.map_label || o.id]));
+    const orderEntityById = Object.fromEntries((workbench.entities.orders || []).map((o) => [o.id, o]));
+
+    // ---- 基线（nearest_greedy）侧生命周期：直接读 map.routes 的 baseline 车道真值 ----
+    // baseline 路线本身携带 assign_at_s / complete_at_s / courier_id / eta_s（后端真实计算），
+    // 与我方 orderLifecycle 完全对称，只是数据源换成 baseline 车道，绝不引入前端编造。
+    const baselineRouteMap = (() => {
+      const map = {};
+      for (const route of workbench.map.routes || []) {
+        if (route.lane === "baseline" && route.order_id && !(route.order_id in map)) map[route.order_id] = route;
+      }
+      return map;
+    })();
+    const baselineLifecycle = (() => {
+      const life = {};
+      for (const order of workbench.entities.orders || []) {
+        const created = Number(order.created_at_s);
+        const route = baselineRouteMap[order.id];
+        let assignAt = null, courierId = "", courierLabel = "", completeAt, dispatched = false;
+        if (route && Number.isFinite(Number(route.assign_at_s))) {
+          dispatched = true;
+          assignAt = Number(route.assign_at_s);
+          courierId = route.courier_id || (order.baseline_result && order.baseline_result.courier_id) || "";
+          courierLabel = route.courier_label || riderLabelForId(courierId);
+          let etaS = Number.isFinite(Number(route.eta_s)) ? Number(route.eta_s) : NaN;
+          if (!Number.isFinite(etaS) && order.baseline_result && Number.isFinite(Number(order.baseline_result.eta_min))) {
+            etaS = Number(order.baseline_result.eta_min) * 60;
+          }
+          if (!Number.isFinite(etaS)) etaS = 600;
+          completeAt = Number.isFinite(Number(route.complete_at_s)) ? Number(route.complete_at_s) : assignAt + Math.max(120, etaS);
+        } else {
+          completeAt = created + DEFAULT_SERVICE_S;
+        }
+        life[order.id] = {
+          id: order.id, map_label: orderLabelById[order.id] || order.id,
+          created_at_s: created, assign_at_s: assignAt,
+          courier_id: courierId, courier_label: courierLabel,
+          complete_at_s: completeAt, dispatched, route_id: route ? route.id : ""
+        };
+      }
+      return life;
+    })();
+    function baselineStatusAt(orderId, simTimeS) {
+      const life = baselineLifecycle[orderId];
+      if (!life || !Number.isFinite(life.created_at_s)) return "unknown";
+      if (simTimeS < life.created_at_s) return "unreleased";
+      if (life.dispatched) {
+        if (simTimeS < life.assign_at_s) return "waiting";
+        if (simTimeS < life.complete_at_s) return "dispatched";
+        return "completed";
+      }
+      return simTimeS < life.complete_at_s ? "waiting" : "completed";
+    }
+    // 基线执行中路线（镜像 liveDispatchedRoutes，读 baseline 车道）
+    function baselineDispatchedRoutes(simTimeS) {
+      const rows = [];
+      for (const order of workbench.map.anchors.orders) {
+        if (baselineStatusAt(order.id, simTimeS) !== "dispatched") continue;
+        const route = baselineRouteMap[order.id];
+        if (route) rows.push(route);
+      }
+      rows.sort((a, b) => (baselineLifecycle[a.order_id]?.assign_at_s || 0) - (baselineLifecycle[b.order_id]?.assign_at_s || 0));
+      return rows.slice(-MAP_ROUTE_CAP);
+    }
+    // 基线移动骑手（镜像 deriveMovingRiders，读 baseline 车道 + baselineLifecycle）
+    function baselineMovingRiders(simTimeS) {
+      const byCourier = new Map();
+      for (const route of baselineDispatchedRoutes(simTimeS)) {
+        const life = baselineLifecycle[route.order_id];
+        if (!life || !life.dispatched) continue;
+        const list = byCourier.get(route.courier_id) || [];
+        list.push({ route, life });
+        byCourier.set(route.courier_id, list);
+      }
+      const riders = [];
+      for (const [courierId, items] of byCourier) {
+        items.sort((a, b) => (a.life.assign_at_s || 0) - (b.life.assign_at_s || 0));
+        const primary = items[0];
+        const span = Math.max(1, primary.life.complete_at_s - primary.life.assign_at_s);
+        const progress = clamp((simTimeS - primary.life.assign_at_s) / span, 0, 1);
+        const position = pointAlongPolyline(primary.route.polyline, progress);
+        if (!position) continue;
+        const taskOrderIds = uniqueIds(items.map((item) => item.route.order_id));
+        riders.push({
+          id: courierId, label: riderLabelForId(courierId), map_label: riderLabelForId(courierId),
+          order_id: primary.route.order_id, task_order_ids: taskOrderIds, task_order_count: taskOrderIds.length,
+          position, motion: "moving", phase: "delivering", progress
+        });
+      }
+      return riders;
+    }
+    function baselineRidersForFrame(frame) {
+      const moving = baselineMovingRiders(inferenceState.currentTimeS);
+      if (moving.length) return dedupeRiderPositions(moving);
+      const snaps = ((frame.baseline && frame.baseline.courier_positions) || []).slice(0, 18).map((s) => ({
+        id: s.courier_id, label: riderLabelForId(s.courier_id), map_label: riderLabelForId(s.courier_id),
+        position: s.position, motion: "snapshot", phase: s.status || "available"
+      }));
+      return dedupeRiderPositions(snaps);
+    }
+    // 基线地图订单点（镜像 ordersForMap，用 baselineStatusAt + baselineLifecycle 着色）
+    function baselineOrdersForMap(simTimeS) {
+      const visible = [];
+      for (const order of workbench.map.anchors.orders) {
+        const status = baselineStatusAt(order.id, simTimeS);
+        if (status === "unreleased" || status === "unknown") continue;
+        if (status === "completed") {
+          const life = baselineLifecycle[order.id];
+          if (life && simTimeS > life.complete_at_s + ORDER_FADE_S) continue;
+        }
+        visible.push({ ...order, status: ORDER_STATUS_FROM_LIFECYCLE[status] });
+      }
+      if (visible.length <= MAP_ORDER_CAP) return visible.sort((a, b) => a.created_at_s - b.created_at_s);
+      const trimmed = visible.slice()
+        .sort((a, b) => (ORDER_STATE_RANK[a.status] - ORDER_STATE_RANK[b.status]) || (b.created_at_s - a.created_at_s))
+        .slice(0, MAP_ORDER_CAP);
+      return trimmed.sort((a, b) => a.created_at_s - b.created_at_s);
+    }
+    // 已送达 / 执行中计数：直接数生命周期（后端真实 assign/complete 时刻），与地图完全一致。
+    function laneCounts(life, T) {
+      let delivered = 0, active = 0;
+      for (const id in life) {
+        const l = life[id];
+        if (!l.dispatched || !Number.isFinite(l.assign_at_s)) continue;
+        if (l.complete_at_s <= T) delivered += 1;
+        else if (l.assign_at_s <= T) active += 1;
+      }
+      return { delivered, active };
+    }
+
+    // 双屏全屏：把「两张图 + 图例 + 下方指标」整块 #compare-fs-wrap 一起全屏，控件也在里面。
+    function toggleCompareFullscreen() {
+      const el = document.getElementById("compare-fs-wrap");
+      if (!el) return;
+      const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+      if (fsEl) (document.exitFullscreen || document.webkitExitFullscreen || function () {}).call(document);
+      else (el.requestFullscreen || el.webkitRequestFullscreen || function () {}).call(el);
+    }
+    function handleCompareFullscreenChange() {
+      const el = document.getElementById("compare-fs-wrap");
+      const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+      const isFs = Boolean(fsEl && el && fsEl === el);
+      if (el) el.dataset.fullscreen = isFs ? "true" : "false";
+      const btn = document.getElementById("compare-fullscreen");
+      if (btn) btn.textContent = isFs ? "⛶ 退出全屏" : "⛶ 全屏对比";
+      const settle = () => {
+        [compareMapB, compareMapO].forEach((m) => {
+          if (!m) return;
+          m.invalidateSize(false);
+          const b = mapBounds();
+          if (b) m.fitBounds(b, { animate: false, padding: [16, 16] });
+        });
+        renderCompareRuntimeState(true);
+      };
+      window.setTimeout(settle, 80);
+      window.setTimeout(settle, 320);
+    }
+
+    function renderComparePage() {
+      return `
+        ${pageHeader("compare", "双屏对照 + 指标分化", "同一批订单、同一条时间轴：左侧最近贪心基线，右侧我方 AutoSolver，下方核心指标实时分化，一眼看出差距。")}
+        <div class="page-grid compare-grid" data-page="compare" data-inference-state="${inferenceState.running ? "running" : inferenceState.started ? "paused" : "ready"}">
+          <div id="compare-fs-wrap" class="compare-fs-wrap" data-fullscreen="false">
+            <div class="control-dock live-control-dock" data-control-strip="compare">
+              <button id="start-inference" class="primary-button" data-control="start-inference">开始推理</button>
+              <button id="pause-inference" class="ghost-button" data-control="pause-resume">暂停/继续</button>
+              <select id="playback-speed" class="select-control" data-control="speed"><option value="1">1x</option><option value="2">2x</option><option value="4">4x</option></select>
+              <select id="inference-mode" class="select-control" data-control="mode"><option value="current">当前算法</option><option value="compare">对比</option><option value="overlay">叠加</option></select>
+              <div class="runtime-strip" data-inference-runtime="status">
+                <div class="runtime-cell"><span>状态</span><b id="inference-state-label">未开始</b></div>
+                <div class="runtime-cell" data-runtime="clock"><span>推演时间</span><b id="inference-clock">${escapeHtml(clock(inferenceState.currentTimeS))}</b></div>
+                <div class="runtime-cell"><span>倍速</span><b id="inference-speed-label">${inferenceState.speed}x</b></div>
+                <div class="runtime-cell"><span>模式</span><b id="inference-mode-label">${escapeHtml(inferenceModeLabels[inferenceState.mode])}</b></div>
+                <div class="runtime-cell"><span>释放事件</span><b id="inference-event-count">${releasedEvents(inferenceState.currentTimeS).length}</b></div>
+              </div>
+              <div id="inference-progress-control" class="inference-progress" role="slider" tabindex="0" aria-label="点击跳转到对应推演时间" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${inferenceProgressPct()}" title="点击进度条跳转；左右方向键跳转推演时间"><span id="inference-progress-bar" style="--progress:${inferenceProgressPct()}%"></span>${renderStorylineTicks()}</div>
+              <button id="compare-fullscreen" class="ghost-button" type="button" title="双屏全屏对比（ESC 退出）">⛶ 全屏对比</button>
+            </div>
+            <div class="compare-stage-row">
+              <div class="compare-panel" data-algo="baseline">
+                <div class="compare-panel-head">
+                  <div class="compare-algo"><span class="compare-badge" data-algo="baseline">基线</span><b>最近贪心 nearest_greedy</b></div>
+                  <div id="compare-mini-baseline" class="compare-mini"></div>
+                </div>
+                <div id="compare-map-baseline" class="compare-map" aria-label="基线算法地图"></div>
+              </div>
+              <div class="compare-panel" data-algo="ours">
+                <div class="compare-panel-head">
+                  <div class="compare-algo"><span class="compare-badge" data-algo="ours">我方</span><b>AutoSolver Agent</b></div>
+                  <div id="compare-mini-ours" class="compare-mini"></div>
+                </div>
+                <div id="compare-map-ours" class="compare-map" aria-label="我方算法地图"></div>
+              </div>
+            </div>
+            <div class="compare-legend-bar">${renderMapLegend()}</div>
+            <div class="compare-sameorder">
+              <div class="compare-section-title">同单对照 · 左右两算法处理同一笔订单 <span class="compare-hint">点选卡片锁定该单、左右两图同步高亮（再点取消）</span><span id="compare-sameorder-caption" class="compare-sameorder-caption"></span></div>
+              <div id="compare-sameorder-grid" class="compare-sameorder-grid"></div>
+            </div>
+            <div class="compare-bottom">
+              <div class="compare-scoreboard-wrap">
+                <div class="compare-section-title">核心指标实时对比 <span class="compare-hint">（绿色=我方更优）</span></div>
+                <div id="compare-scoreboard" class="compare-scoreboard"></div>
+              </div>
+              <div class="compare-trend-wrap">
+                <div class="compare-section-title">核心指标趋势 · 随时间分化 <span class="compare-hint">（红=基线 / 绿=我方）</span></div>
+                <div id="compare-trends" class="compare-trends"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function hydrateComparePage() {
+      inferenceState.mode = "current"; // 每屏各画单一算法，不叠加
+      hydrateCompareMaps();
+      bindLiveControls();              // 复用实时页控件绑定：开始/暂停/倍速/时间轴/方向键
+      const fsBtn = document.getElementById("compare-fullscreen");
+      if (fsBtn) fsBtn.addEventListener("click", toggleCompareFullscreen);
+      const csoGrid = document.getElementById("compare-sameorder-grid");
+      if (csoGrid && csoGrid.dataset.clickBound !== "true") {
+        csoGrid.dataset.clickBound = "true";
+        csoGrid.addEventListener("click", (event) => {
+          const card = event.target.closest ? event.target.closest(".compare-sameorder-card[data-order-id]") : null;
+          if (!card) return;
+          const id = card.getAttribute("data-order-id");
+          compareLockedOrderId = compareLockedOrderId === id ? "" : id; // 再点同一张=取消锁定
+          renderCompareRuntimeState(true);
+        });
+      }
+      if (!compareFullscreenBound) {
+        compareFullscreenBound = true;
+        document.addEventListener("fullscreenchange", handleCompareFullscreenChange);
+        document.addEventListener("webkitfullscreenchange", handleCompareFullscreenChange);
+      }
+      renderCompareRuntimeState(true);
+    }
+
+    function hydrateCompareMaps() {
+      if (!window.L) return;
+      const mk = (id) => {
+        const map = window.L.map(id, { attributionControl: true, zoomControl: false, boxZoom: false, doubleClickZoom: false, keyboard: false, scrollWheelZoom: true, preferCanvas: false, zoomAnimation: true, markerZoomAnimation: true, zoomSnap: 0.25, zoomDelta: 0.5, wheelPxPerZoomLevel: 160, wheelDebounceTime: 80 });
+        window.L.control.zoom({ position: "bottomright" }).addTo(map);
+        window.L.tileLayer(liveTileLayer.url, { attribution: liveTileLayer.attribution, maxZoom: 19, subdomains: liveTileLayer.subdomains }).addTo(map);
+        const bounds = mapBounds();
+        if (bounds) map.fitBounds(bounds, { animate: false, padding: [16, 16] });
+        else map.setView(mapPoint(workbench.map.center), 14);
+        return map;
+      };
+      compareMapB = mk("compare-map-baseline");
+      compareMapO = mk("compare-map-ours");
+      compareGroupB = window.L.layerGroup().addTo(compareMapB);
+      compareGroupO = window.L.layerGroup().addTo(compareMapO);
+      compareMapB.on("movestart zoomstart", () => { compareInteractingB = true; });
+      compareMapB.on("moveend zoomend", () => { compareInteractingB = false; });
+      compareMapO.on("movestart zoomstart", () => { compareInteractingO = true; });
+      compareMapO.on("moveend zoomend", () => { compareInteractingO = false; });
+      const settle = () => {
+        [compareMapB, compareMapO].forEach((m) => {
+          if (!m) return;
+          m.invalidateSize(false);
+          const b = mapBounds();
+          if (b) m.fitBounds(b, { animate: false, padding: [16, 16] });
+        });
+        renderCompareRuntimeState(true);
+      };
+      window.setTimeout(settle, 80);
+      window.setTimeout(settle, 320);
+    }
+
+    function teardownCompare() {
+      if (compareMapB) { compareMapB.remove(); compareMapB = null; }
+      if (compareMapO) { compareMapO.remove(); compareMapO = null; }
+      compareGroupB = compareGroupO = null;
+    }
+
+    // 两图重绘：右图复用实时页 ours 管线，左图用 baseline 管线，两图各喂各自算法真实数据。
+    function updateCompareMaps(T) {
+      if (!window.L) return;
+      const frame = frameForTime(T);
+      let oursRoutes = liveDispatchedRoutes(T).map((r) => ({ ...r, renderLane: "ours" }));
+      const oursRiders = riderPositionsForFrame(frame);
+      const oursOrders = ordersForMap(frame);
+      let baseRoutes = baselineDispatchedRoutes(T).map((r) => ({ ...r, renderLane: "ours" }));
+      const baseRiders = baselineRidersForFrame(frame);
+      const baseOrders = baselineOrdersForMap(T);
+      if (compareLockedOrderId) { // 锁定单：两图该单路线改用 difference（琥珀加粗），一眼锁定
+        const lift = (rows) => rows.map((r) => (r.order_id === compareLockedOrderId ? { ...r, renderLane: "difference" } : r));
+        oursRoutes = lift(oursRoutes); baseRoutes = lift(baseRoutes);
+      }
+      if (compareGroupB && !compareInteractingB) { compareGroupB.clearLayers(); renderLeafletMapLayers(compareGroupB, baseRoutes, baseRiders, baseOrders); }
+      if (compareGroupO && !compareInteractingO) { compareGroupO.clearLayers(); renderLeafletMapLayers(compareGroupO, oursRoutes, oursRiders, oursOrders); }
+    }
+
+    // 对比页运行态：由 renderLiveRuntimeState 在对比页时派发到这里（两页共用 inferenceState 时间轴）。
+    function renderCompareRuntimeState(force) {
+      const grid = document.querySelector("[data-page='compare']");
+      if (!grid) return;
+      const T = inferenceState.currentTimeS;
+      const finished = inferenceState.started && T >= workbench.timeline.end_s;
+      const stateLabel = inferenceState.running ? "自动推理中" : finished ? "推演完成" : inferenceState.started ? "已暂停" : "未开始";
+      grid.dataset.inferenceState = inferenceState.running ? "running" : inferenceState.started ? "paused" : "ready";
+      setText("inference-state-label", stateLabel);
+      setText("inference-clock", clock(T));
+      setText("inference-speed-label", `${inferenceState.speed}x`);
+      setText("inference-mode-label", inferenceModeLabels[inferenceState.mode]);
+      setText("inference-event-count", releasedEvents(T).length);
+      const pb = document.getElementById("inference-progress-bar");
+      if (pb) pb.style.setProperty("--progress", `${inferenceProgressPct()}%`);
+      const startBtn = document.getElementById("start-inference");
+      if (startBtn) { startBtn.disabled = inferenceState.started && inferenceState.running; startBtn.textContent = inferenceState.started ? "重新开始" : "开始推理"; }
+      const pauseBtn = document.getElementById("pause-inference");
+      if (pauseBtn) { pauseBtn.textContent = inferenceState.running ? "暂停" : finished ? "已完成" : "继续"; pauseBtn.disabled = finished && !inferenceState.running; }
+      const heavy = force || (Date.now() - compareLastHeavyAt >= COMPARE_HEAVY_MIN_MS);
+      if (!heavy) return;
+      compareLastHeavyAt = Date.now();
+      updateCompareMaps(T);
+      renderCompareScoreboard(T);
+      renderCompareTrends(T);
+      renderCompareMini(T);
+      renderCompareSameOrder(T);
+    }
+
+    function renderCompareScoreboard(T) {
+      const el = document.getElementById("compare-scoreboard"); if (!el) return;
+      const s = scoreForTime(T); const b = s.baseline || {}, o = s.ours || {}; // 质量指标读后端真实 series
+      const bc = laneCounts(baselineLifecycle, T), oc = laneCounts(orderLifecycle, T); // 计数用真实生命周期，与地图一致
+      const onTime = (m) => 100 * (((m.delivered_orders || 0) - (m.late_orders || 0)) / Math.max(1, m.delivered_orders || 0));
+      const rows = [
+        { k: "已送达单", bv: bc.delivered, ov: oc.delivered, better: "high", d: 0 },
+        { k: "执行中", bv: bc.active, ov: oc.active, better: "none", d: 0 },
+        { k: "超时单", bv: b.late_orders, ov: o.late_orders, better: "low", d: 0 },
+        { k: "准时率(%)", bv: onTime(b), ov: onTime(o), better: "high", d: 1 },
+        { k: "平均送达时长(min)", bv: b.avg_eta_min, ov: o.avg_eta_min, better: "low", d: 1 },
+        { k: "单均配送成本(元)", bv: (b.total_cost_yuan || 0) / Math.max(1, b.delivered_orders || 0), ov: (o.total_cost_yuan || 0) / Math.max(1, o.delivered_orders || 0), better: "low", d: 2 },
+        { k: "累计配送成本(元)", bv: b.total_cost_yuan, ov: o.total_cost_yuan, better: "low", d: 0 }
+      ];
+      el.innerHTML = `<div class="cmp-row cmp-head"><span>指标</span><span>基线</span><span>我方</span><span>优势</span></div>` + rows.map((r) => {
+        const bv = Number(r.bv || 0), ov = Number(r.ov || 0);
+        if (r.better === "none") return `<div class="cmp-row" data-cmp="tie"><span>${escapeHtml(r.k)}</span><span class="cmp-b">${escapeHtml(fmtNumber(bv, r.d))}</span><span class="cmp-o">${escapeHtml(fmtNumber(ov, r.d))}</span><span class="cmp-gap">—</span></div>`;
+        const tie = Math.abs(ov - bv) < (r.d ? 0.05 : 0.5);
+        const oursBetter = r.better === "low" ? ov < bv : ov > bv;
+        const cls = tie ? "tie" : (oursBetter ? "win" : "lose");
+        const gapText = tie ? "持平" : `${oursBetter ? "优" : "劣"} ${fmtNumber(Math.abs(ov - bv), r.d)}`;
+        return `<div class="cmp-row" data-cmp="${cls}"><span>${escapeHtml(r.k)}</span><span class="cmp-b">${escapeHtml(fmtNumber(bv, r.d))}</span><span class="cmp-o">${escapeHtml(fmtNumber(ov, r.d))}</span><span class="cmp-gap">${escapeHtml(gapText)}</span></div>`;
+      }).join("");
+    }
+
+    function getCompareSeries() { return workbench.metrics.series || []; }
+    const COMPARE_TREND_METRICS = [
+      { key: "avg_eta_min", label: "平均送达时长", unit: "min", d: 1, better: "low" },
+      { key: "on_time_rate", label: "准时率", unit: "%", d: 1, better: "high", get: (m) => 100 * (((m.delivered_orders || 0) - (m.late_orders || 0)) / Math.max(1, m.delivered_orders || 0)) },
+      { key: "cost_per_order", label: "单均配送成本", unit: "元/单", d: 2, better: "low", get: (m) => (m.total_cost_yuan || 0) / Math.max(1, m.delivered_orders || 0) },
+      { key: "late_orders", label: "累计超时单", unit: "单", d: 0, better: "low" }
+    ];
+    function renderCompareTrends(T) {
+      const el = document.getElementById("compare-trends"); if (!el) return;
+      const series = getCompareSeries();
+      if (!series.length) { el.innerHTML = ""; return; }
+      const s = scoreForTime(T); const bCur = s.baseline || {}, oCur = s.ours || {};
+      el.innerHTML = COMPARE_TREND_METRICS.map((m) => compareMiniTrendCard(series, m, T, bCur, oCur)).join("");
+    }
+    // 单指标小图：baseline(红)/ours(绿) 两条线；只画 time_s<=T 的部分（末端插值到 T），随播放逐渐展开。
+    function compareMiniTrendCard(series, m, T, bCur, oCur) {
+      const W = 100, H = 44;
+      const gv = m.get || ((mm) => Number((mm || {})[m.key] || 0));
+      const t0 = series[0].time_s, t1 = series[series.length - 1].time_s;
+      const vals = series.flatMap((p) => [gv(p.baseline), gv(p.ours)]);
+      let ymin = Math.min.apply(null, vals), ymax = Math.max.apply(null, vals);
+      if (ymax - ymin < 1e-6) ymax = ymin + 1;
+      const xOf = (t) => ((clamp(t, t0, t1) - t0) / Math.max(1, t1 - t0)) * W;
+      const yOf = (v) => H - ((v - ymin) / (ymax - ymin)) * (H - 8) - 4;
+      const revealPath = (getter) => {
+        const pts = [];
+        for (let i = 0; i < series.length; i++) {
+          const p = series[i];
+          if (p.time_s <= T) { pts.push([xOf(p.time_s), yOf(Number(getter(p)))]); continue; }
+          if (i > 0 && series[i - 1].time_s <= T) {
+            const a = series[i - 1], bb = p;
+            const f = (T - a.time_s) / Math.max(1, bb.time_s - a.time_s);
+            const va = Number(getter(a)), vb = Number(getter(bb));
+            pts.push([xOf(T), yOf(va + (vb - va) * f)]);
+          }
+          break;
+        }
+        return pts.length < 1 ? "" : pts.map((pt, i) => `${i ? "L" : "M"}${pt[0].toFixed(1)},${pt[1].toFixed(1)}`).join(" ");
+      };
+      const bPath = revealPath((p) => gv(p.baseline));
+      const oPath = revealPath((p) => gv(p.ours));
+      const nowX = xOf(T).toFixed(1);
+      const bv = gv(bCur), ov = gv(oCur);
+      const better = m.better === "high" ? (ov > bv + 1e-9) : (ov < bv - 1e-9);
+      const gap = Math.abs(bv - ov);
+      return `<div class="cmp-mini-card">
+        <div class="cmp-mini-head"><b>${escapeHtml(m.label)}</b><span class="cmp-mini-vals"><i class="cmp-b">${escapeHtml(fmtNumber(bv, m.d))}</i> / <i class="cmp-o">${escapeHtml(fmtNumber(ov, m.d))}</i>${m.unit ? " " + escapeHtml(m.unit) : ""}${better ? ` <em class="cmp-mini-gap">优 ${escapeHtml(fmtNumber(gap, m.d))}</em>` : ""}</span></div>
+        <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="cmp-mini-svg">
+          ${bPath ? `<path d="${bPath}" fill="none" stroke="#dc2626" stroke-width="1.4" vector-effect="non-scaling-stroke"></path>` : ""}
+          ${oPath ? `<path d="${oPath}" fill="none" stroke="#0f766e" stroke-width="1.9" vector-effect="non-scaling-stroke"></path>` : ""}
+          <line x1="${nowX}" y1="0" x2="${nowX}" y2="${H}" stroke="#94a3b8" stroke-width="0.7" stroke-dasharray="2 2" vector-effect="non-scaling-stroke"></line>
+        </svg>
+      </div>`;
+    }
+
+    function renderCompareMini(T) {
+      const s = scoreForTime(T); const b = s.baseline || {}, o = s.ours || {};
+      const bc = laneCounts(baselineLifecycle, T), oc = laneCounts(orderLifecycle, T);
+      const mb = document.getElementById("compare-mini-baseline");
+      const mo = document.getElementById("compare-mini-ours");
+      if (mb) mb.innerHTML = `已送达 <b>${fmtNumber(bc.delivered, 0)}</b> · 超时 <b class="cmp-bad">${fmtNumber(Number(b.late_orders || 0), 0)}</b> · 均时 <b>${fmtNumber(Number(b.avg_eta_min || 0), 1)}</b>min`;
+      if (mo) mo.innerHTML = `已送达 <b>${fmtNumber(oc.delivered, 0)}</b> · 超时 <b class="cmp-good">${fmtNumber(Number(o.late_orders || 0), 0)}</b> · 均时 <b>${fmtNumber(Number(o.avg_eta_min || 0), 1)}</b>min`;
+    }
+
+    // 「同单对照」：同一笔订单在基线 / 我方两算法下的骑手 / 阶段 / 进度 / 耗时并排对照，与两图完全同源。
+    function compareLegOf(life, orderId, T) {
+      const l = life[orderId];
+      if (!l) return { has: false, dispatched: false };
+      if (!l.dispatched || !Number.isFinite(l.assign_at_s)) {
+        return { has: true, dispatched: false, status: "pending", phaseLabel: "待派单", rider: "", progress: 0, durMin: null, doneAt: "" };
+      }
+      const span = Math.max(1, l.complete_at_s - l.assign_at_s);
+      const progress = clamp((T - l.assign_at_s) / span, 0, 1);
+      let status, phaseLabel;
+      if (T < l.assign_at_s) { status = "waiting"; phaseLabel = "待派单"; }
+      else if (T >= l.complete_at_s) { status = "completed"; phaseLabel = "已送达"; }
+      else if (progress < 0.35) { status = "pickup"; phaseLabel = "取餐中"; }
+      else { status = "deliver"; phaseLabel = "配送中"; }
+      return {
+        has: true, dispatched: true, status, phaseLabel, progress,
+        rider: l.courier_label || riderLabelForId(l.courier_id) || "",
+        durMin: (l.complete_at_s - l.assign_at_s) / 60,
+        doneAt: clock(l.complete_at_s)
+      };
+    }
+    function compareOrderColumn(leg, algo) {
+      const badge = `<span class="compare-badge" data-algo="${algo}">${algo === "baseline" ? "基线" : "我方"}</span>`;
+      if (!leg || !leg.dispatched) {
+        return `<div class="cso-col" data-algo="${algo}">
+          <div class="cso-col-head">${badge}<span class="cso-rider">待派单</span></div>
+          <div class="cso-phase" data-phase="pending">尚未分配骑手</div>
+          <div class="cso-bar" data-phase="pending"><i style="width:0%"></i></div>
+          <div class="cso-metric">等待派单决策</div>
+        </div>`;
+      }
+      const pct = fmtNumber(leg.progress * 100, 0);
+      const done = leg.status === "completed";
+      return `<div class="cso-col" data-algo="${algo}">
+        <div class="cso-col-head">${badge}<span class="cso-rider">骑手 ${escapeHtml(leg.rider)}</span></div>
+        <div class="cso-phase" data-phase="${leg.status}"><b>${leg.phaseLabel}</b>${done ? "" : ` · ${pct}%`}</div>
+        <div class="cso-bar" data-phase="${leg.status}"><i style="width:${done ? 100 : pct}%"></i></div>
+        <div class="cso-metric">配送耗时 <b>${fmtNumber(leg.durMin, 1)}</b> min · ${done ? `${escapeHtml(leg.doneAt)} 送达` : `预计 ${escapeHtml(leg.doneAt)} 达`}</div>
+      </div>`;
+    }
+    function renderCompareSameOrder(T) {
+      const grid = document.getElementById("compare-sameorder-grid");
+      if (!grid) return;
+      const cap = document.getElementById("compare-sameorder-caption");
+      if (!inferenceState.started) {
+        grid.innerHTML = `<div class="cso-empty">开始推理后，这里逐笔列出同一订单在两种算法下的对照：谁派给哪个骑手、走到哪一步、预计多久送达。</div>`;
+        if (cap) cap.textContent = "";
+        return;
+      }
+      const anchors = workbench.map.anchors.orders || [];
+      const TRAIL = 1800; // 已送达保留 30 分钟滚动窗口
+      const active = [], recent = [];
+      const inWindow = (life, kind) => {
+        if (!life || !life.dispatched || !Number.isFinite(life.assign_at_s)) return false;
+        if (kind === "active") return life.assign_at_s <= T && T < life.complete_at_s;
+        return life.complete_at_s <= T && T <= life.complete_at_s + TRAIL;
+      };
+      for (const o of anchors) {
+        const id = o.id;
+        const bl = baselineLifecycle[id], ol = orderLifecycle[id];
+        if (inWindow(bl, "active") || inWindow(ol, "active")) { active.push(id); continue; }
+        if (inWindow(bl, "recent") || inWindow(ol, "recent")) recent.push(id);
+      }
+      const legOf = (life, id) => life[id] || {};
+      const earliestAssign = (id) => Math.min(legOf(orderLifecycle, id).assign_at_s ?? Infinity, legOf(baselineLifecycle, id).assign_at_s ?? Infinity);
+      const latestComplete = (id) => Math.max(legOf(orderLifecycle, id).complete_at_s ?? 0, legOf(baselineLifecycle, id).complete_at_s ?? 0);
+      active.sort((a, b) => earliestAssign(a) - earliestAssign(b));
+      recent.sort((a, b) => latestComplete(b) - latestComplete(a));
+      let ids = active.concat(recent);
+      if (compareLockedOrderId) ids = [compareLockedOrderId, ...ids.filter((x) => x !== compareLockedOrderId)];
+      const CAP = 9;
+      const clipped = ids.length > CAP;
+      ids = ids.slice(0, CAP);
+      if (!ids.length) {
+        grid.innerHTML = `<div class="cso-empty">当前没有正在执行或近 30 分钟内送达的订单可对照。</div>`;
+      } else {
+        grid.innerHTML = ids.map((id) => {
+          const bl = compareLegOf(baselineLifecycle, id, T), ol = compareLegOf(orderLifecycle, id, T);
+          const orderLabel = orderLabelById[id] || id;
+          const merchant = (orderEntityById[id] && orderEntityById[id].merchant_label) || "";
+          const sameRider = bl.dispatched && ol.dispatched && bl.rider && bl.rider === ol.rider;
+          const tagKind = sameRider ? "same" : "diverge";
+          const tagText = sameRider ? "同一骑手" : "分化派单";
+          let footText, footTone;
+          if (bl.dispatched && ol.dispatched && bl.durMin != null && ol.durMin != null) {
+            const d = bl.durMin - ol.durMin; // 正=我方更快
+            if (Math.abs(d) < 0.05) { footText = "两算法预计耗时基本持平"; footTone = "tie"; }
+            else if (d > 0) { footText = `我方预计快 ${fmtNumber(d, 1)} 分钟`; footTone = "win"; }
+            else { footText = `我方预计慢 ${fmtNumber(-d, 1)} 分钟`; footTone = "lose"; }
+          } else if (ol.dispatched && !bl.dispatched) { footText = "我方已派单执行，基线尚未派单"; footTone = "win"; }
+          else if (bl.dispatched && !ol.dispatched) { footText = "基线已派单，我方尚未派单"; footTone = "lose"; }
+          else { footText = "两算法均待派单"; footTone = "tie"; }
+          const selected = compareLockedOrderId === id ? " data-selected='1'" : "";
+          return `<div class="compare-sameorder-card" role="button" tabindex="0" title="锁定该单：左右两图同步高亮" data-order-id="${escapeHtml(id)}"${selected}>
+            <div class="cso-head"><b>订单 ${escapeHtml(orderLabel)}</b>${merchant ? `<span class="cso-merchant">商家 ${escapeHtml(merchant)}</span>` : ""}<span class="cso-tag" data-kind="${tagKind}">${tagText}</span></div>
+            <div class="cso-body">${compareOrderColumn(bl, "baseline")}${compareOrderColumn(ol, "ours")}</div>
+            <div class="cso-foot" data-tone="${footTone}">${footText}</div>
+          </div>`;
+        }).join("");
+      }
+      if (cap) {
+        const focus = compareLockedOrderId ? `｜已锁定 ${escapeHtml(orderLabelById[compareLockedOrderId] || compareLockedOrderId)}（再点取消）` : "";
+        cap.textContent = `执行中 ${active.length} · 近30分钟送达 ${recent.length}${clipped ? ` · 仅显示前 ${CAP}` : ""}${focus}`;
+      }
+    }
+
     function handleGlobalPlaybackShortcut(event) {
       if (event.repeat || (event.code !== "Space" && event.key !== " ")) return;
       if (isShortcutInputTarget(event.target)) return;
       if (isNativePauseButtonTarget(event.target)) return;
-      if (document.body.dataset.route !== "live") return;
-      if (!document.querySelector("[data-page='live']")) return;
+      if (document.body.dataset.route !== "live" && document.body.dataset.route !== "compare") return;
+      if (!document.querySelector("[data-page='live'], [data-page='compare']")) return;
       const inferenceFinished = inferenceState.started && inferenceState.currentTimeS >= workbench.timeline.end_s;
       if (inferenceFinished && !inferenceState.running) return;
       event.preventDefault();
@@ -6964,6 +7803,10 @@ def render_day_replay_index() -> str:
     }
 
     function bootstrapDispatchWorkbench() {
+      // 注入「双屏对比」导航项（纯前端新增页面，不改后端 payload；置于末位，与 8766 版一致）
+      if (Array.isArray(workbench.routes) && !workbench.routes.some((r) => r.id === "compare")) {
+        workbench.routes.push({ id: "compare", path: "#/compare", label: "双屏对比", kandbox_module: "对比验证" });
+      }
       renderNav();
       renderTopbarStats();
       setRoute(routeFromHash());

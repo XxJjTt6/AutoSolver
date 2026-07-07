@@ -13,3 +13,18 @@ autosolver_agent/evolution_state/strategy_registry.json
 web_agent_demo/.simulation_memory/
 submission_dryrun/
 submission_final/
+
+# 验证截图（本地工作产物，不入库）
+_前端v2验证截图/
+
+# 非代码产物 / 工作素材（不入库，只留项目原生代码）
+goal/
+docs/
+output/
+archive/
+data/official_cases/image001.png
+Agent Harness+Loop Engineering.md
+Agent长期记忆设计以及一些比较新的资料.md
+决赛评审标准.png
+赛题描述.png
+微信图片_*.jpg
