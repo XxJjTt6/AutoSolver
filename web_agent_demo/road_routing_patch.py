@@ -151,6 +151,7 @@ def _route_payloads_with_merchant_index(contract: Any, map_aliases: dict[str, di
                         "polyline": [wb._position_payload(point) for point in route.get("polyline", [])],
                         "merchant_index": route.get("merchant_index"),  # 商家分割点下标（取餐段/配送段边界）
                         "batch_size": route.get("batch_size"),          # 顺路合单：这趟骑手带几单（>1 即合单）
+                        "batch_start_s": route.get("batch_start_s"),    # 批次真实出发时刻（批内相同；分组/运动锚点用）
                         "eta_s": route.get("eta_s", 0),
                         "cost_yuan": route.get("cost_yuan", 0),
                         "assign_at_s": route.get("assign_at_s"),

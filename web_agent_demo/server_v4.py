@@ -1,29 +1,29 @@
-"""v3 启动器：合并版前端 —— v1 的双屏对比（原样保留）+ v2 的长期记忆（自主学习可视化）。
-复用原 server.py 的全部后端逻辑，仅把首页渲染替换为 day_replay_frontend_v3.render_day_replay_index。
-不改动 server.py / day_replay_frontend.py / day_replay_frontend_v2.py 任何原文件。
+"""v4 启动器：基于 v3（双屏对比 + 长期记忆），对比页第 4 项指标由「最忙骑手接单量」换成「P95 送达时长」。
+复用原 server.py 的全部后端逻辑，仅把首页渲染替换为 day_replay_frontend_v4.render_day_replay_index。
+不改动 server.py / server_v3.py / day_replay_frontend_v3.py 任何原文件。
 
 用法与原 server 一致：
-    python3 web_agent_demo/server_v3.py --host 127.0.0.1 --port 8799
+    python3 web_agent_demo/server_v4.py --host 127.0.0.1 --port 8799
 """
 from __future__ import annotations
 
 import sys
 from pathlib import Path
 
-# 允许以脚本方式直接运行（python3 web_agent_demo/server_v3.py）。
+# 允许以脚本方式直接运行（python3 web_agent_demo/server_v4.py）。
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from web_agent_demo import server  # noqa: E402
 
 # 道路路由补丁：把「直线距离 + 按算法暗改的乘子」换成真实路网单一事实源（前后端一致、铲除造假）。
-# 必须在首次渲染/首次跑仿真之前 apply（day_replay_frontend_v3 的 _bootstrap_payload 惰性缓存首个请求时才跑仿真）。
+# 必须在首次渲染/首次跑仿真之前 apply（day_replay_frontend_v4 的 _bootstrap_payload 惰性缓存首个请求时才跑仿真）。
 # 生产态 allow_network=False：只读 route_cache.json（离线、快）；未命中才回退直线×绕路系数。
 from web_agent_demo import road_routing_patch  # noqa: E402
 
 road_routing_patch.apply(allow_network=False)
 
-from web_agent_demo.day_replay_frontend_v3 import render_day_replay_index  # noqa: E402
+from web_agent_demo.day_replay_frontend_v4 import render_day_replay_index  # noqa: E402
 
 
 def _render_index_v3() -> str:
@@ -113,7 +113,7 @@ _roster_recalc_lock = threading.Lock()
 def _start_roster_recalc() -> None:
     def _worker(gen: int) -> None:
         from web_agent_demo import runtime_roster, road_routing_patch, road_routing
-        from web_agent_demo import day_replay_frontend_v3 as fe
+        from web_agent_demo import day_replay_frontend_v4 as fe
         try:
             fe._bootstrap_payload.cache_clear()
             prev_geo = road_routing_patch.GEOMETRY_NETWORK

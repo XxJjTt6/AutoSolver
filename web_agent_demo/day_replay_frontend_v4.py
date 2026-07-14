@@ -10024,7 +10024,7 @@ def render_day_replay_index() -> str:
     }
 
     // 骑手负载分布（截至 T 每个骑手累计被派多少单）——直接数两套模型的真实生命周期，与地图/记分牌同源。
-    // 最忙骑手单量 = 该算法把负载压到单个骑手身上的峰值；越低越均衡，不累垮个别骑手（我方 load_penalty 的真实体现）。
+    // 现仅用于记分牌「负载不均·极差」行（最忙骑手指标在合单档差距收窄，已换成 P95 送达时长）。
     function courierLoadStats(model, T) {
       const load = {};
       const life = model.orderLifecycle || {};
@@ -10041,39 +10041,18 @@ def render_day_replay_index() -> str:
       return { max: Math.max(...vals), min: Math.min(...vals), std, range: Math.max(...vals) - Math.min(...vals), count: n, load };
     }
 
-    // 「最忙骑手累计单量」随时间的序列：按 assign 时刻一趟扫描，返回每个时间点的当前最大单量（用于负载趋势曲线）。
-    function courierMaxLoadSeries(model, timePoints) {
-      const life = model.orderLifecycle || {};
-      const events = [];
-      for (const id in life) {
-        const l = life[id];
-        if (l.dispatched && l.courier_id && Number.isFinite(l.assign_at_s)) events.push([l.assign_at_s, l.courier_id]);
-      }
-      events.sort((a, b) => a[0] - b[0]);
-      const load = {}; let curMax = 0, ei = 0;
-      return timePoints.map((t) => {
-        while (ei < events.length && events[ei][0] <= t) {
-          const c = events[ei][1];
-          load[c] = (load[c] || 0) + 1;
-          if (load[c] > curMax) curMax = load[c];
-          ei++;
-        }
-        return curMax;
-      });
-    }
-
     function renderCompareScoreboard(T) {
       const el = document.getElementById("compare-scoreboard"); if (!el) return;
       const _s = scoreForTime(T); const b = _s.baseline || {}, o = _s.ours || {}; // 质量指标用后端真实 series
       const bc = modelCounts(baselineModel, T), oc = modelCounts(oursModel, T);   // 计数用真实生命周期，与地图一致
       const bl = courierLoadStats(baselineModel, T), ol = courierLoadStats(oursModel, T); // 负载均衡
       const onTime = (m) => 100 * (((m.delivered_orders || 0) - (m.late_orders || 0)) / Math.max(1, m.delivered_orders || 0)); // 准时率=(已送达-超时)/已送达
-      // 口径顺序：先亮我方真正拉开差距的「准时率/超时/均时/负载均衡/累计节省」，单均成本（距离主导、天然差距小）降为次要。
+      // 口径顺序：先亮我方真正拉开差距的「准时率/超时/均时/长尾时效/负载均衡/累计节省」，单均成本（距离主导、天然差距小）降为次要。
       const rows = [
         { k: "准时率(%)", bv: onTime(b), ov: onTime(o), better: "high", d: 1 },
         { k: "超时单", bv: b.late_orders, ov: o.late_orders, better: "low", d: 0 },
         { k: "平均送达时长(min)", bv: b.avg_eta_min, ov: o.avg_eta_min, better: "low", d: 1 },
-        { k: "最忙骑手接单量(单)", bv: bl.max, ov: ol.max, better: "low", d: 0 },
+        { k: "P95送达时长(min)", bv: b.p95_eta_min, ov: o.p95_eta_min, better: "low", d: 1 },
         { k: "负载不均·极差(单)", bv: bl.range, ov: ol.range, better: "low", d: 0 },
         { k: "累计配送成本(元)", bv: b.total_cost_yuan, ov: o.total_cost_yuan, better: "low", d: 0 },
         { k: "单均配送成本(元)", bv: (b.total_cost_yuan || 0) / Math.max(1, b.delivered_orders || 0), ov: (o.total_cost_yuan || 0) / Math.max(1, o.delivered_orders || 0), better: "low", d: 2 },
@@ -10096,54 +10075,18 @@ def render_day_replay_index() -> str:
     const COMPARE_TREND_METRICS = [
       { key: "avg_eta_min", label: "平均送达时长", unit: "min", d: 1, better: "low" },
       { key: "on_time_rate", label: "准时率", unit: "%", d: 1, better: "high", get: (m) => 100 * (((m.delivered_orders || 0) - (m.late_orders || 0)) / Math.max(1, m.delivered_orders || 0)) },
-      { key: "cost_per_order", label: "单均配送成本", unit: "元/单", d: 2, better: "low", get: (m) => (m.total_cost_yuan || 0) / Math.max(1, m.delivered_orders || 0) }
-      // 「累计超时单」与准时率语义重复，按用户要求移除（记分牌里的超时单数字行仍保留）
+      { key: "cost_per_order", label: "单均配送成本", unit: "元/单", d: 2, better: "low", get: (m) => (m.total_cost_yuan || 0) / Math.max(1, m.delivered_orders || 0) },
+      // P95 送达时长 = 长尾时效（行业标准口径：差评/客诉集中在长尾慢单）。直接读后端 series 字段，与记分牌同源。
+      { key: "p95_eta_min", label: "P95 送达时长·长尾", unit: "min", d: 1, better: "low" }
+      // 「累计超时单」与准时率语义重复，按用户要求移除（记分牌里的超时单数字行仍保留）；
+      // 「最忙骑手接单量」在合单档差距收窄（43 vs 42），按用户要求换成 P95 长尾时效。
     ];
     function renderCompareTrends(T) {
       const el = document.getElementById("compare-trends"); if (!el) return;
       const series = getCompareSeries();
       if (!series.length) { el.innerHTML = ""; return; }
       const _s = scoreForTime(T); const bCur = _s.baseline || {}, oCur = _s.ours || {}; // 后端真实当前值
-      el.innerHTML = COMPARE_TREND_METRICS.map((m) => compareMiniTrendCard(series, m, T, bCur, oCur)).join("")
-        + compareLoadTrendCard(series, T); // 追加「最忙骑手」负载趋势曲线（红=基线随时间被压高、绿=我方摊平压低）
-    }
-    // 负载趋势曲线：与其它趋势小图同样式，但值来自前端按时间现算的「最忙骑手累计单量」（后端 series 无此字段）。
-    function compareLoadTrendCard(series, T) {
-      const W = 100, H = 44;
-      const times = series.map((p) => p.time_s);
-      const bVals = courierMaxLoadSeries(baselineModel, times);
-      const oVals = courierMaxLoadSeries(oursModel, times);
-      const t0 = times[0], t1 = times[times.length - 1];
-      const all = bVals.concat(oVals);
-      let ymin = Math.min.apply(null, all), ymax = Math.max.apply(null, all);
-      if (ymax - ymin < 1e-6) ymax = ymin + 1;
-      const xOf = (t) => ((clamp(t, t0, t1) - t0) / Math.max(1, t1 - t0)) * W;
-      const yOf = (v) => H - ((v - ymin) / (ymax - ymin)) * (H - 8) - 4;
-      const revealPath = (vals) => {
-        const pts = [];
-        for (let i = 0; i < times.length; i++) {
-          if (times[i] <= T) { pts.push([xOf(times[i]), yOf(vals[i])]); continue; }
-          if (i > 0 && times[i - 1] <= T) {
-            const f = (T - times[i - 1]) / Math.max(1, times[i] - times[i - 1]);
-            pts.push([xOf(T), yOf(vals[i - 1] + (vals[i] - vals[i - 1]) * f)]);
-          }
-          break;
-        }
-        return pts.length ? pts.map((pt, i) => `${i ? "L" : "M"}${pt[0].toFixed(1)},${pt[1].toFixed(1)}`).join(" ") : "";
-      };
-      const bPath = revealPath(bVals), oPath = revealPath(oVals);
-      const nowX = xOf(T).toFixed(1);
-      const bv = courierLoadStats(baselineModel, T).max, ov = courierLoadStats(oursModel, T).max;
-      const better = ov < bv - 1e-9;
-      const gap = Math.abs(bv - ov);
-      return `<div class="cmp-mini-card">
-        <div class="cmp-mini-head"><b>最忙骑手接单量</b><span class="cmp-mini-vals"><i class="cmp-b">${escapeHtml(fmtNumber(bv, 0))}</i> / <i class="cmp-o">${escapeHtml(fmtNumber(ov, 0))}</i> 单${better ? ` <em class="cmp-mini-gap">优 ${escapeHtml(fmtNumber(gap, 0))}</em>` : ""}</span></div>
-        <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="cmp-mini-svg">
-          ${bPath ? `<path d="${bPath}" fill="none" stroke="#dc2626" stroke-width="1.4" vector-effect="non-scaling-stroke"></path>` : ""}
-          ${oPath ? `<path d="${oPath}" fill="none" stroke="#0f766e" stroke-width="1.9" vector-effect="non-scaling-stroke"></path>` : ""}
-          <line x1="${nowX}" y1="0" x2="${nowX}" y2="${H}" stroke="#94a3b8" stroke-width="0.7" stroke-dasharray="2 2" vector-effect="non-scaling-stroke"></line>
-        </svg>
-      </div>`;
+      el.innerHTML = COMPARE_TREND_METRICS.map((m) => compareMiniTrendCard(series, m, T, bCur, oCur)).join("");
     }
     // 单个指标小图：baseline(红)/ours(绿) 两条线；只画 time_s<=T 的部分（末端插值到 T），随播放逐渐展开。
     function compareMiniTrendCard(series, m, T, bCur, oCur) {

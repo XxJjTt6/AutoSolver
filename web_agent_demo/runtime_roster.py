@@ -97,8 +97,13 @@ def inject_world(world: Any) -> Any:
             if ts.start_s <= no.created_at_s < ts.end_s:
                 slices[i] = dataclasses.replace(ts, order_ids=ts.order_ids + (no.id,))
                 break
-    if new_couriers:  # 时段的运力供给数字同步 +N，保持口径一致
-        slices = [dataclasses.replace(ts, courier_supply=ts.courier_supply + len(new_couriers)) for ts in slices]
+    if new_couriers:
+        # 时段运力供给数只加给「该骑手上线之后」的时段——因果一致的关键之一：
+        # 若给过去时段也 +N，过去时段的打分压力(future_pressure)会变 → 已发生的派单被改写。
+        slices = [
+            dataclasses.replace(ts, courier_supply=ts.courier_supply + sum(1 for c in new_couriers if c.shift_start_s <= ts.start_s))
+            for ts in slices
+        ]
     return dataclasses.replace(
         world,
         couriers=world.couriers + tuple(new_couriers),

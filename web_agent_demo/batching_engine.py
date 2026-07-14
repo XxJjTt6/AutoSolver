@@ -157,7 +157,10 @@ def _run_batch(plan: Any, batch: list[Any], time_slice: Any) -> tuple[list[Any],
             "polyline": list(cur_points), "merchant_index": merchant_index,
             "batch_size": len(batch),
             "eta_s": assignment.total_eta_s, "cost_yuan": assignment.expected_cost_yuan,
-            "assign_at_s": round(batch_start_t, 3),  # 骑手开始这趟合单的时刻
+            # 因果约束：该单的“派单时刻”不得早于它自己的下单时刻。批次可以早出发（先取别家餐），
+            # 但“还没下单的单已被派”物理不可能——否则前端出现「卡片已派、地图判未下单不画线」的窗口打架。
+            "assign_at_s": round(max(batch_start_t, float(o.created_at_s)), 3),
+            "batch_start_s": round(batch_start_t, 3),  # 批次真实出发时刻（批内相同）：前端分组/骑手运动锚点用它
             "complete_at_s": round(arrive_t, 3),     # 该单真实送达时刻
         })
         prev_pos = o.destination
