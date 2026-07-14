@@ -423,12 +423,19 @@ def run_agent(
                 "similarity": [item.get("similarity", 0.0) for item in trusted[:3]],
             }
         )
-    generated_strategy = evolution.generate_strategy(regime, f"run_agent:{case_id}:best-so-far experiment", case_profile)
+    # LLM 生成的阻塞等待预算：只用"富余时间"，至少给求解链路留 7 秒；等不到就模板起步+试跑前热切换
+    llm_wait_s = max(0.0, min(2.0, deadline - time.monotonic() - 7.0))
+    generated_strategy = evolution.generate_strategy(
+        regime, f"run_agent:{case_id}:best-so-far experiment", case_profile, llm_wait_s=llm_wait_s
+    )
+    strategy_generator = getattr(generated_strategy, "generator", "template")
+    generator_label = "LLM 按场景生成" if strategy_generator == "llm" else "规则模板生成"
     emit(
         {
             "type": "evolution_generate",
-            "message": f"生成实验策略 {generated_strategy.strategy_id}，先进入实验轨道，不修改 solver.py。",
+            "message": f"生成实验策略 {generated_strategy.strategy_id}（{generator_label}），先进入实验轨道，与正式求解隔离。",
             "strategy_id": generated_strategy.strategy_id,
+            "generator": strategy_generator,
         }
     )
     safety = evolution.safety_check(generated_strategy.path, generated_strategy.strategy_id)
@@ -548,6 +555,19 @@ def run_agent(
         rounds.append(round_payload)
         if not adaptive_added and best_record is not None:
             adaptive_added = True
+            # LLM 结果若在求解期间到达，试跑前热切换（换入代码仍要重新过三道门）
+            swap_wait_s = max(0.0, min(0.8, deadline - time.monotonic() - 1.5))
+            if evolution.refresh_generated_strategy(generated_strategy, wait_s=swap_wait_s):
+                safety = evolution.safety_check(generated_strategy.path, generated_strategy.strategy_id)
+                emit(
+                    {
+                        "type": "evolution_generate",
+                        "message": f"实验策略 {generated_strategy.strategy_id} 热切换为 LLM 生成版本，试跑前重新过三道门（安检{'通过' if safety.passed else '拒绝'}）。",
+                        "strategy_id": generated_strategy.strategy_id,
+                        "generator": "llm",
+                        "upgraded": True,
+                    }
+                )
             if safety.passed:
                 baseline_cost = float(best_record["local_cost"])
                 trial_budget_s = min(0.15, max(0.02, deadline - time.monotonic() - 0.25))

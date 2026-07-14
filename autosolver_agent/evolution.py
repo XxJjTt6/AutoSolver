@@ -5,11 +5,18 @@ import datetime as dt
 import importlib.util
 import inspect
 import json
+import threading
 import time
+from concurrent.futures import Future
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from dataclasses import dataclass
 from pathlib import Path
 from types import ModuleType
 from typing import Any, Callable
+
+from autosolver_agent import llm_generator
+
+_LLM_CACHE_LOCK = threading.Lock()
 
 
 ALLOWED_IMPORTS = {"collections", "heapq", "itertools", "math", "random", "time"}
@@ -23,6 +30,7 @@ class GeneratedStrategy:
     path: Path
     target_regime: str
     source: str
+    generator: str = "template"
 
 
 @dataclass(frozen=True)
@@ -54,42 +62,208 @@ class EvolutionManager:
         self.generated_dir = self.root / "generated_strategies"
         self.memory_path = self.root / "evolution_memory.jsonl"
         self.registry_path = self.root / "strategy_registry.json"
+        self.llm_cache_path = self.root / "llm_code_cache.json"
         self.generated_dir.mkdir(parents=True, exist_ok=True)
         self.root.mkdir(parents=True, exist_ok=True)
+        # 尚未等到结果的 LLM 生成请求：strategy_id -> (future, cache_key)，试跑前可热切换
+        self._pending_llm: dict[str, tuple[Future, str]] = {}
 
     def generate_strategy(
         self,
         target_regime: str,
         source: str,
         case_profile: dict[str, Any] | None = None,
+        llm_wait_s: float | None = None,
     ) -> GeneratedStrategy:
+        """生成实验策略。LLM 链路按 10 秒预算设计成三级降级：
+
+        ① 场景桶缓存命中 → 0 毫秒拿到历史 LLM 代码；
+        ② 未命中 → 后台线程异步请求，只阻塞等待 llm_wait_s（默认 2 秒）；
+        ③ 等不到 → 先用确定性模板起步，Future 继续在后台跑，
+           试跑前可 refresh_generated_strategy() 热切换，迟到结果也会写入缓存供下一轮使用。
+        """
         strategy_id = self._next_strategy_id(target_regime)
         path = self.generated_dir / f"{strategy_id}.py"
-        path.write_text(self._strategy_template(strategy_id, target_regime), encoding="utf-8")
-        strategy = GeneratedStrategy(strategy_id, path, target_regime, source)
+        code: str | None = None
+        generator = "template"
+        generator_note: str | None = None
+        if llm_generator.enabled():
+            compact_profile = self._compact_case_profile(case_profile)
+            cache_key = self._llm_bucket_key(target_regime, compact_profile)
+            cached = self._llm_cache_get(cache_key)
+            if cached is not None:
+                code = str(cached["code"])
+                generator = "llm"
+                generator_note = f"cache hit [{cache_key}]; model={cached.get('model') or 'llm'}"
+            else:
+                future = llm_generator.request_code_async(target_regime, compact_profile)
+                future.add_done_callback(lambda fut, key=cache_key: self._llm_cache_store_from_future(key, fut))
+                wait_s = 2.0 if llm_wait_s is None else max(0.0, float(llm_wait_s))
+                result: dict[str, Any] | None = None
+                if wait_s > 0:
+                    try:
+                        result = future.result(timeout=wait_s)
+                    except FutureTimeoutError:
+                        result = None
+                if result is None:
+                    generator_note = f"llm pending after {wait_s:.1f}s wait; started with template (hot-swap before trial)"
+                    self._pending_llm[strategy_id] = (future, cache_key)
+                elif result.get("status") == "ok":
+                    candidate_code = str(result.get("code") or "")
+                    pre_reason = self._pre_screen_generated_code(candidate_code)
+                    if pre_reason is None:
+                        code = candidate_code
+                        generator = "llm"
+                        generator_note = f"model={result.get('model') or 'llm'}"
+                    else:
+                        generator_note = f"llm code pre-rejected: {pre_reason}; fallback to template"
+                else:
+                    generator_note = str(result.get("message") or "llm unavailable; fallback to template")
+        path.write_text(code if code is not None else self._strategy_template(strategy_id, target_regime), encoding="utf-8")
+        strategy = GeneratedStrategy(strategy_id, path, target_regime, source, generator)
         registry_patch = {
             "status": "draft",
             "target_regime": target_regime,
             "source": source,
+            "generator": generator,
             "file": str(path),
             "attempts": 0,
             "accepted": 0,
             "rejected": 0,
         }
+        if generator_note is not None:
+            registry_patch["generator_note"] = generator_note
         if case_profile is not None:
             registry_patch["origin_case_profile"] = self._compact_case_profile(case_profile)
         self._update_registry(strategy_id, registry_patch)
+        memory_event = {
+            "event": "strategy_generated",
+            "strategy_id": strategy_id,
+            "target_regime": target_regime,
+            "source": source,
+            "generator": generator,
+            "file": str(path),
+            "case_profile": self._compact_case_profile(case_profile),
+        }
+        if generator_note is not None:
+            memory_event["generator_note"] = generator_note
+        self._append_memory(memory_event)
+        return strategy
+
+    @classmethod
+    def _pre_screen_generated_code(cls, code: str) -> str | None:
+        """LLM 产出的代码先做一次与安全门同源的预筛：不合格就地回退模板，不浪费本轮实验。"""
+        if not code.strip():
+            return "empty code"
+        try:
+            tree = ast.parse(code)
+        except SyntaxError as exc:
+            return f"syntax error: {exc.msg}"
+        reason = cls._unsafe_reason(tree)
+        if reason:
+            return reason
+        for node in tree.body:
+            if isinstance(node, ast.FunctionDef) and node.name == "propose":
+                params = [arg.arg for arg in node.args.args]
+                if params != ["candidates", "all_tasks", "deadline", "helpers"]:
+                    return "invalid propose signature"
+                return None
+        return "missing propose"
+
+    def refresh_generated_strategy(self, strategy: GeneratedStrategy, wait_s: float = 0.0) -> bool:
+        """LLM 结果迟到的热切换：结果已到且合格 → 盘上模板换成 LLM 代码。
+
+        只在试跑之前调用；换入的代码随后仍会在 run_generated_strategy 里
+        重新过完整三道门（静态安检→限时沙箱→质量门），没有任何直通豁免。
+        """
+        pending = self._pending_llm.get(strategy.strategy_id)
+        if pending is None:
+            return False
+        future, cache_key = pending
+        result: dict[str, Any] | None = None
+        if future.done() or wait_s > 0:
+            try:
+                result = future.result(timeout=max(0.001, wait_s))
+            except FutureTimeoutError:
+                result = None
+        if result is None:
+            return False  # 还没到，留在 pending 里，迟到结果会经缓存服务后续轮次
+        self._pending_llm.pop(strategy.strategy_id, None)
+        if result.get("status") != "ok":
+            self._update_registry(strategy.strategy_id, {"generator_note": f"llm late failure: {result.get('message') or 'unknown'}; kept template"})
+            return False
+        code = str(result.get("code") or "")
+        pre_reason = self._pre_screen_generated_code(code)
+        if pre_reason is not None:
+            self._update_registry(strategy.strategy_id, {"generator_note": f"llm code pre-rejected: {pre_reason}; kept template"})
+            return False
+        strategy.path.write_text(code, encoding="utf-8")
+        self._llm_cache_store(cache_key, code, str(result.get("model") or "llm"))
+        self._update_registry(strategy.strategy_id, {"generator": "llm", "generator_note": f"hot-swapped before trial; model={result.get('model') or 'llm'}"})
         self._append_memory(
             {
-                "event": "strategy_generated",
-                "strategy_id": strategy_id,
-                "target_regime": target_regime,
-                "source": source,
-                "file": str(path),
-                "case_profile": self._compact_case_profile(case_profile),
+                "event": "strategy_upgraded",
+                "strategy_id": strategy.strategy_id,
+                "generator": "llm",
+                "note": "llm code arrived late and was hot-swapped before the sandbox trial",
             }
         )
-        return strategy
+        return True
+
+    # ---------- LLM 场景桶缓存：同类场景不再重复调用，命中即 0 毫秒 ----------
+
+    @staticmethod
+    def _llm_bucket_key(target_regime: str, compact_profile: dict[str, Any] | None) -> str:
+        profile = compact_profile or {}
+        tasks = int(profile.get("tasks", 0) or 0)
+        couriers = int(profile.get("couriers", 0) or 0)
+        if tasks <= 8:
+            size = "tiny"
+        elif tasks <= 15:
+            size = "small"
+        elif tasks < 40:
+            size = "medium"
+        else:
+            size = "large"
+        supply = "scarce" if 0 < couriers <= tasks else "ample"
+        willingness = round(float(profile.get("avg_willingness", 0.0) or 0.0), 1)
+        bundles = "bundles" if profile.get("has_bundles") else "plain"
+        return f"{target_regime}|{size}|{supply}|aw{willingness}|{bundles}"
+
+    def _llm_cache_read(self) -> dict[str, dict[str, Any]]:
+        try:
+            return json.loads(self.llm_cache_path.read_text(encoding="utf-8") or "{}")
+        except (FileNotFoundError, json.JSONDecodeError):
+            return {}
+
+    def _llm_cache_get(self, cache_key: str) -> dict[str, Any] | None:
+        item = self._llm_cache_read().get(cache_key)
+        if not item:
+            return None
+        if self._pre_screen_generated_code(str(item.get("code") or "")) is not None:
+            return None
+        return item
+
+    def _llm_cache_store(self, cache_key: str, code: str, model: str) -> None:
+        if self._pre_screen_generated_code(code) is not None:
+            return
+        with _LLM_CACHE_LOCK:
+            data = self._llm_cache_read()
+            data[cache_key] = {
+                "code": code,
+                "model": model,
+                "created_at": dt.datetime.now().isoformat(timespec="seconds"),
+            }
+            self.llm_cache_path.write_text(json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+
+    def _llm_cache_store_from_future(self, cache_key: str, future: Future) -> None:
+        """Future 完成回调（含迟到完成）：好代码进缓存，服务后续轮次；失败静默。"""
+        try:
+            result = future.result(timeout=0.001)
+        except Exception:  # noqa: BLE001 - 回调线程里任何失败都不应外抛
+            return
+        if isinstance(result, dict) and result.get("status") == "ok":
+            self._llm_cache_store(cache_key, str(result.get("code") or ""), str(result.get("model") or "llm"))
 
     def safety_check(self, path: Path, strategy_id: str | None = None) -> SafetyResult:
         path = Path(path)

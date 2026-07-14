@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import math
 import os
 import random
 from dataclasses import dataclass, replace
@@ -800,17 +799,6 @@ def _assign_order(
     candidates = tuple(plan for plan in courier_plans.values() if plan.courier.shift_start_s <= order.created_at_s < plan.courier.shift_end_s)
     if not candidates:
         candidates = tuple(courier_plans.values())
-    # 现实约束：真实运营中不会让订单为某个骑手空等一个多小时——高峰时会在「较快能接单」的骑手里选。
-    # 因此把候选限定在「已空闲或很快空出」的骑手中；这样基线(就近)与我方(智能)的差距来自
-    # 「在可用骑手里选谁 + 路由/负载/风险」，而非「就近贪心派给繁忙骑手」造成的物理上不真实的超长排队。
-    # 若全员繁忙，则退到「最早空出的一批」，等待仍被现实封顶，杜绝节省曲线的单帧尖刺。
-    reasonable_wait_s = 18 * 60
-    available_soon = tuple(plan for plan in candidates if plan.available_at_s <= order.created_at_s + reasonable_wait_s)
-    if available_soon:
-        candidates = available_soon
-    else:
-        earliest_free = min(plan.available_at_s for plan in candidates)
-        candidates = tuple(plan for plan in candidates if plan.available_at_s <= earliest_free + reasonable_wait_s)
     candidates_by_id = {plan.courier.id: plan for plan in candidates}
     profiles = tuple(_assignment_profile(time_slice, order, plan, algorithm_id) for plan in candidates)
     if algorithm_id == "nearest_greedy":
@@ -1029,13 +1017,6 @@ def _algorithm_day_run(
     )
 
 
-def _signature_overlap(sig_a: str, sig_b: str) -> int:
-    """两个场景签名（时段|天气|拥堵|运力|冲击，共 5 段）逐段相同的段数。"""
-    parts_a = str(sig_a).split("|")
-    parts_b = str(sig_b).split("|")
-    return sum(1 for left, right in zip(parts_a, parts_b) if left == right)
-
-
 def _build_evolution_memory_events(
     world: DaySimulationWorld,
     frames: tuple[SideBySideFrame, ...],
@@ -1044,24 +1025,13 @@ def _build_evolution_memory_events(
         return ()
     slice_by_id = {time_slice.id: time_slice for time_slice in world.time_slices}
     events: list[EvolutionMemoryEvent] = []
-    seen: list[tuple[str, str]] = []  # 当天“更早”轮次的 (frame_id, signature)，按时间顺序累积
     for frame in frames:
         time_slice = slice_by_id[frame.time_slice_id]
         signature = _context_signature(time_slice)
-        # 真·召回：只在“当天更早”的轮次里找 同签名 / ≥3 维相同 的历史轮，取最近 5 条（Top-K）。
-        # 开局第一轮或暂时没有相似历史时，召回为空——如实为空，绝不编造案例。
-        matches = [earlier_id for earlier_id, earlier_sig in seen if _signature_overlap(earlier_sig, signature) >= 3]
-        recalled = tuple(matches[-5:])
+        recalled = _recalled_case_ids(world, time_slice)
         confidence_before = _confidence_before(time_slice, frame.delta)
         confidence_after = _confidence_after(confidence_before, frame.delta)
         learned_rule = _learned_rule(time_slice, frame.delta)
-        if recalled:
-            recall_rule = (
-                f"Recall {signature}: matched {len(recalled)} earlier round(s) today; "
-                "rank historical risk-aware dispatch before nearest-only matching."
-            )
-        else:
-            recall_rule = f"Cold start for {signature}: no similar earlier round today yet — nothing to recall."
         events.extend(
             (
                 EvolutionMemoryEvent(
@@ -1071,7 +1041,7 @@ def _build_evolution_memory_events(
                     context_signature=signature,
                     recalled_case_ids=recalled,
                     chosen_algorithm_id=frame.challenger.algorithm_id,
-                    learned_rule=recall_rule,
+                    learned_rule=f"Recall {signature} and rank historical risk-aware dispatch before nearest-only matching.",
                     confidence_before=confidence_before,
                     confidence_after=confidence_before,
                     writeback=False,
@@ -1102,7 +1072,6 @@ def _build_evolution_memory_events(
                 ),
             )
         )
-        seen.append((frame.id, signature))  # 处理完本轮后才入库，保证召回只看“更早”的轮
     return tuple(events)
 
 
@@ -1680,13 +1649,11 @@ def _generate_day_shocks(
     shortage_severity = 0.36 + rng.random() * 0.24
     burst_severity = 0.55 + rng.random() * 0.24
     return (
-        # 现实时长：真实天气/客流冲击持续 2–3 小时，且强度渐强→平台→渐弱（见 _shock_envelope），
-        # 不是"开关式"十几分钟就结束——避免节省曲线出现单帧尖刺后骤降的失真。
         DayShock(
             id="S-rain-lunch",
             shock_type="rain_slowdown",
-            start_s=11 * 60 * 60,          # 11:00
-            end_s=14 * 60 * 60,            # 14:00（午市雨，约 3 小时）
+            start_s=11 * 60 * 60 + 45 * 60,
+            end_s=13 * 60 * 60 + 15 * 60,
             affected_zone_ids=("office_core", "mall_foodcourt"),
             severity=round(rain_severity, 4),
             summary="Rain slows lunch-peak arterial links.",
@@ -1694,8 +1661,8 @@ def _generate_day_shocks(
         DayShock(
             id="S-merchant-burst-lunch",
             shock_type="merchant_burst",
-            start_s=11 * 60 * 60 + 30 * 60,  # 11:30
-            end_s=13 * 60 * 60 + 30 * 60,    # 13:30（整个午市高峰，约 2 小时）
+            start_s=12 * 60 * 60,
+            end_s=12 * 60 * 60 + 45 * 60,
             affected_zone_ids=("mall_foodcourt", "metro_exit"),
             severity=round(burst_severity, 4),
             summary="Merchant burst creates simultaneous lunch orders.",
@@ -1703,8 +1670,8 @@ def _generate_day_shocks(
         DayShock(
             id="S-road-dinner",
             shock_type="road_congestion",
-            start_s=17 * 60 * 60,            # 17:00
-            end_s=19 * 60 * 60 + 45 * 60,    # 19:45（晚高峰通勤拥堵，约 2 小时 45 分）
+            start_s=17 * 60 * 60 + 30 * 60,
+            end_s=19 * 60 * 60 + 15 * 60,
             affected_zone_ids=("office_core", "residential_edge"),
             severity=round(road_severity, 4),
             summary="Dinner commute congestion slows cross-zone movement.",
@@ -1712,8 +1679,8 @@ def _generate_day_shocks(
         DayShock(
             id="S-courier-night",
             shock_type="courier_shortage",
-            start_s=20 * 60 * 60 + 15 * 60,  # 20:15
-            end_s=22 * 60 * 60 + 45 * 60,    # 22:45（夜间运力缺口，约 2 小时 30 分）
+            start_s=21 * 60 * 60,
+            end_s=22 * 60 * 60 + 30 * 60,
             affected_zone_ids=tuple(scenario.merchant_zones),
             severity=round(shortage_severity, 4),
             summary="Night supply gap reduces available courier pool.",
@@ -1787,13 +1754,11 @@ def _order_count_for_slice(
     }
     count = base_by_phase.get(phase, 4.0) * controls.order_scale * ((end_s - start_s) / DEFAULT_TIME_SLICE_S)
     for shock in active_shocks:
-        # severity 已由 _active_shocks 按包络调制：激增倍数随冲击渐强渐弱平滑起落。
         if shock.shock_type == "merchant_burst":
-            count *= 1.0 + shock.severity * 0.42  # 午市峰值约多 30–35% 单（现实量级，非近翻倍）
+            count *= 1.0 + shock.severity * 0.95
         elif shock.shock_type in {"rain_slowdown", "road_congestion"}:
             count *= 1.0 + shock.severity * 0.12
-    # 抖动收窄到 ±12%：同一 15 分钟片内客流较稳定，避免逐帧订单量剧烈跳变造成骑手饱和忽高忽低。
-    jitter = 0.88 + rng.random() * 0.24
+    jitter = 0.72 + rng.random() * 0.62
     return max(1, int(round(count * jitter)))
 
 
@@ -1825,33 +1790,8 @@ def _phase_for_second(second: int) -> str:
     return "night_supply_gap"
 
 
-def _shock_envelope(shock: DayShock, start_s: int, end_s: int) -> float:
-    """冲击强度包络：窗口内「渐强 → 平台 → 渐弱」的平滑系数 ∈ [0, 1]。
-    现实中天气/客流冲击不是开关式突变，而是逐步累积再逐步消退；用余弦缓入缓出，
-    前后各 30% 时长平滑爬升/回落、中间 40% 维持峰值。据此把 severity 调制成随时间
-    自然起落的每帧有效强度，从根本上消除「节省在单帧爆发、下一帧骤降」的失真。"""
-    window = max(1, shock.end_s - shock.start_s)
-    mid = (start_s + end_s) / 2.0
-    x = (mid - shock.start_s) / window  # 该帧中点在冲击窗口内的相对位置
-    if x <= 0.0 or x >= 1.0:
-        return 0.0
-    ramp = 0.30
-    if x < ramp:
-        return round(0.5 - 0.5 * math.cos(math.pi * (x / ramp)), 4)
-    if x > 1.0 - ramp:
-        return round(0.5 - 0.5 * math.cos(math.pi * ((1.0 - x) / ramp)), 4)
-    return 1.0
-
-
 def _active_shocks(shocks: tuple[DayShock, ...], start_s: int, end_s: int) -> tuple[DayShock, ...]:
-    # 返回按包络调制过有效强度的每帧副本：冲击标签在整个窗口内保持一致（场景连续），
-    # 但下游拥堵/运力/订单量/备餐等效应读到的 severity 会随时间平滑起落，而非恒定。
-    active: list[DayShock] = []
-    for shock in shocks:
-        if shock.start_s < end_s and shock.end_s > start_s:
-            intensity = _shock_envelope(shock, start_s, end_s)
-            active.append(replace(shock, severity=round(shock.severity * intensity, 4)))
-    return tuple(active)
+    return tuple(shock for shock in shocks if shock.start_s < end_s and shock.end_s > start_s)
 
 
 def _weather_for_slice(controls: DaySimulationControls, active_shocks: tuple[DayShock, ...], start_s: int) -> str:

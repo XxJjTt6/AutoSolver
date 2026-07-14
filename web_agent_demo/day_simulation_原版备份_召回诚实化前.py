@@ -1029,13 +1029,6 @@ def _algorithm_day_run(
     )
 
 
-def _signature_overlap(sig_a: str, sig_b: str) -> int:
-    """两个场景签名（时段|天气|拥堵|运力|冲击，共 5 段）逐段相同的段数。"""
-    parts_a = str(sig_a).split("|")
-    parts_b = str(sig_b).split("|")
-    return sum(1 for left, right in zip(parts_a, parts_b) if left == right)
-
-
 def _build_evolution_memory_events(
     world: DaySimulationWorld,
     frames: tuple[SideBySideFrame, ...],
@@ -1044,24 +1037,13 @@ def _build_evolution_memory_events(
         return ()
     slice_by_id = {time_slice.id: time_slice for time_slice in world.time_slices}
     events: list[EvolutionMemoryEvent] = []
-    seen: list[tuple[str, str]] = []  # 当天“更早”轮次的 (frame_id, signature)，按时间顺序累积
     for frame in frames:
         time_slice = slice_by_id[frame.time_slice_id]
         signature = _context_signature(time_slice)
-        # 真·召回：只在“当天更早”的轮次里找 同签名 / ≥3 维相同 的历史轮，取最近 5 条（Top-K）。
-        # 开局第一轮或暂时没有相似历史时，召回为空——如实为空，绝不编造案例。
-        matches = [earlier_id for earlier_id, earlier_sig in seen if _signature_overlap(earlier_sig, signature) >= 3]
-        recalled = tuple(matches[-5:])
+        recalled = _recalled_case_ids(world, time_slice)
         confidence_before = _confidence_before(time_slice, frame.delta)
         confidence_after = _confidence_after(confidence_before, frame.delta)
         learned_rule = _learned_rule(time_slice, frame.delta)
-        if recalled:
-            recall_rule = (
-                f"Recall {signature}: matched {len(recalled)} earlier round(s) today; "
-                "rank historical risk-aware dispatch before nearest-only matching."
-            )
-        else:
-            recall_rule = f"Cold start for {signature}: no similar earlier round today yet — nothing to recall."
         events.extend(
             (
                 EvolutionMemoryEvent(
@@ -1071,7 +1053,7 @@ def _build_evolution_memory_events(
                     context_signature=signature,
                     recalled_case_ids=recalled,
                     chosen_algorithm_id=frame.challenger.algorithm_id,
-                    learned_rule=recall_rule,
+                    learned_rule=f"Recall {signature} and rank historical risk-aware dispatch before nearest-only matching.",
                     confidence_before=confidence_before,
                     confidence_after=confidence_before,
                     writeback=False,
@@ -1102,7 +1084,6 @@ def _build_evolution_memory_events(
                 ),
             )
         )
-        seen.append((frame.id, signature))  # 处理完本轮后才入库，保证召回只看“更早”的轮
     return tuple(events)
 
 
