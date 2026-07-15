@@ -3290,7 +3290,40 @@
       border-radius: 12px;
       border: 1px solid var(--line);
       background: #fff;
+      cursor: pointer;
+      transition: border-color .15s ease, box-shadow .15s ease;
     }
+    .memory-funnel-tier:hover { border-color: #d6a768; }
+    .memory-funnel-tier[data-open="true"] { border-color: var(--amber); box-shadow: 0 2px 10px rgba(180,83,9,.14); }
+    .memory-funnel-tier .tier-toggle {
+      /* 流内最后一行右对齐（不用 absolute：语义卡正文两行时会与文字重叠，卡高自动撑开即可） */
+      justify-self: end;
+      margin-top: 2px;
+      padding-right: 2px;
+      font: 700 10.5px var(--font); color: var(--muted);
+    }
+    .memory-funnel-tier[data-open="true"] .tier-toggle { color: var(--amber); }
+    /* 分层明细列表（点卡片展开）：内滚，行=时间/类型/场景/说明 */
+    .memory-tier-detail {
+      margin-top: 10px; border: 1px solid var(--line); border-radius: 12px; background: #fff;
+      max-height: 280px; overflow: auto; padding: 6px 10px; display: grid; gap: 0;
+    }
+    .memory-tier-detail .mt-row {
+      display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline;
+      padding: 6px 2px; border-bottom: 1px dashed var(--line); font-size: 12px; min-width: 0;
+    }
+    .memory-tier-detail .mt-row:last-child { border-bottom: 0; }
+    .memory-tier-detail .mt-row i { font-style: normal; font: 700 11px var(--mono); color: var(--muted); flex: 0 0 auto; }
+    .memory-tier-detail .mt-row em {
+      font-style: normal; font: 800 10px var(--font); padding: 2px 7px; border-radius: 999px; flex: 0 0 auto;
+      background: #f1f5f9; color: var(--ink-2);
+    }
+    .memory-tier-detail .mt-row[data-kind="memory_recall"] em { background: #dbeafe; color: #1d4ed8; }
+    .memory-tier-detail .mt-row[data-kind="memory_writeback"] em { background: #fef3c7; color: #92400e; }
+    .memory-tier-detail .mt-row[data-kind="future_policy_shift"] em, .memory-tier-detail .mt-row[data-kind="policy"] em { background: #dcfce7; color: #047857; }
+    .memory-tier-detail .mt-row span { font-weight: 700; color: var(--ink); }
+    .memory-tier-detail .mt-row small { color: var(--muted); font-size: 11.5px; }
+    .memory-tier-detail .mt-empty { margin: 6px 2px; color: var(--muted); font-size: 12px; }
     .memory-funnel-tier[data-tier="episodic"] { width: 100%; }
     .memory-funnel-tier[data-tier="semantic"] { width: 82%; }
     .memory-funnel-tier[data-tier="policy"] { width: 64%; }
@@ -3484,10 +3517,10 @@
         title: "订单池",
         navLabel: "订单池",
         navRole: "需求视图",
-        navHint: "看全天订单、时段、风险和进入推理状态。",
+        navHint: "看已下单订单、时段、风险和推理状态。",
         module: "订单池",
         outcome: "需求全集 + 风险筛选",
-        subtitle: "全天订单全集是固定输入，只用于调度可见性、筛选和风险判断。"
+        subtitle: "订单按真实下单时刻陆续进入订单池；还没下单的订单不可见。"
       },
       riders: {
         icon: "骑",
@@ -4634,7 +4667,7 @@
         if (pill) { pill.querySelector("b").textContent = String(Number(base) + n); pill.querySelector("span").textContent = n > 0 ? `${name}（含${n}临时）` : name; }
       };
       setPill(/骑手/, stats.rider_count, nR, "骑手");
-      setPill(/订单/, stats.order_count, nO, "订单");
+      setPill(/下单/, releasedOrderCountNow(), nO, "已下单");
     }
 
     // 把所有「临时单动画 + 空闲临时骑手」按当前时刻画到 liveInjectLayer；每帧调用即随时钟跑起来。
@@ -5382,11 +5415,10 @@
     let ordersLastRuntimeSig = "";
     function renderOrdersRuntimeState() {
       if (!document.querySelector("[data-page='orders']")) return;
-      const orders = filteredOrders();
-      const entered = orders.filter(orderEnteredNow).length;
+      const orders = filteredOrders(); // 已是因果口径：新单到时刻自动出现
       const assigned = orders.filter((o) => orderResultVisibleAt(oursModel, o.id) || orderResultVisibleAt(baselineModel, o.id)).length;
       const delivered = orders.filter((o) => orderRuntimeStatus(o) === "delivered").length;
-      const sig = `${entered}/${assigned}/${delivered}`;
+      const sig = `${orders.length}/${assigned}/${delivered}`;
       if (sig === ordersLastRuntimeSig) return;
       ordersLastRuntimeSig = sig;
       updateOrdersView();
@@ -5423,6 +5455,7 @@
       </div>`;
     }
     function updateGlobalClockStrips() {
+      refreshInjectCounts(); // 顶栏「已下单」是因果口径，随时钟逐 tick 增长（含临时新增）
       const strips = document.querySelectorAll("[data-global-clock]");
       if (!strips.length) return;
       const playLabel = globalClockPlayLabel(), clk = clockPrecise(inferenceState.currentTimeS);
@@ -5614,10 +5647,15 @@
       if (node) node.textContent = String(value);
     }
 
+    function releasedOrderCountNow() {
+      let n = 0;
+      for (const o of workbench.entities.orders) { if (Number(o.created_at_s) <= inferenceState.currentTimeS) n++; }
+      return n;
+    }
     function renderTopbarStats() {
       const stats = workbench.inspection;
       document.getElementById("topbar-stats").innerHTML = [
-        ["订单", stats.order_count],
+        ["已下单", releasedOrderCountNow()],
         ["骑手", stats.rider_count],
         ["决策轮次", stats.decision_count],
         ["优势验证", "开始后累计"]
@@ -6009,14 +6047,14 @@
     function renderOrdersPage() {
       const orders = filteredOrders();
       return `
-        ${pageHeader("orders", "订单池看板", "全天订单是固定输入、按各自下单时间进入推理，这里只看需求压力、风险结构和算法结果。")}
+        ${pageHeader("orders", "订单池看板", "订单按真实下单时刻陆续进入订单池；这里只看截至当前时刻的需求压力、风险结构和算法结果。")}
         ${renderGlobalClockStrip()}
         <div class="page-grid demand-workspace" data-page="orders" data-orders-route="preloaded-demand-pool">
           <section id="orders-command" class="demand-command-center" data-orders-surface="preloaded-order-pool">
             <div class="demand-command-copy">
               <span class="demand-kicker">只读订单池</span>
               <h3>今天订单怎么来</h3>
-              <p>不录入、不编辑。调度员只按时间段、商圈、状态和风险筛选，先判断哪批订单会影响超时、成本和骑手负载。</p>
+              <p>不录入、不编辑。订单随推演时钟按真实下单时刻释放；调度员按时间段、商圈、状态和风险筛选，判断哪批订单会影响超时、成本和骑手负载。</p>
             </div>
             <div id="orders-overview" class="demand-signal-grid">
               ${renderOrdersOverview(orders)}
@@ -6039,7 +6077,7 @@
               <option value="all">全部风险</option>
               ${workbench.filters.risk_levels.map((item) => `<option value="${escapeHtml(item)}"${item === orderFilterState.risk ? " selected" : ""}>${escapeHtml(displayRisk(item))}</option>`).join("")}
             </select>
-            <span id="orders-result-count" class="filter-count">${orders.length} / ${workbench.entities.orders.length} 单</span>
+            <span id="orders-result-count" class="filter-count">${orders.length} / ${releasedOrders().length} 单（筛选后 / 已下单）</span>
             <button type="button" id="roster-add-order" class="map-inject-btn" title="后台管理：新增一笔订单进订单池，全天推演会重新计算（新单参与派单/合单，双屏对比与全站页面同步生效）">➕ 新增订单</button>
             <button type="button" id="roster-clear" class="faded-toggle-btn" title="清除本次会话新增的所有订单/骑手并重算">清除新增</button>
           </div>
@@ -6054,8 +6092,8 @@
               ${renderOrdersContext(orders)}
             </aside>
           </div>
-          <div class="table-shell orders-table-shell" data-order-universe="full-day" data-evidence-role="secondary">
-              <div class="card-head"><h3>订单全集核对</h3><span>只读证据，不做录入维护</span></div>
+          <div class="table-shell orders-table-shell" data-order-universe="released" data-evidence-role="secondary">
+              <div class="card-head"><h3>已下单订单核对</h3><span>随推演时钟按下单时刻释放 · 只读不编辑</span></div>
               <table>
                 <thead><tr><th>订单</th><th>商家/商圈</th><th>时间窗口</th><th>状态/风险</th><th>推理状态</th><th>基线结果</th><th>我方结果</th></tr></thead>
                 <tbody id="orders-table-body">${orders.map(renderOrderRow).join("")}</tbody>
@@ -8513,6 +8551,49 @@
       return [...counts.values()].sort((a, b) => b.count - a.count);
     }
 
+    // 三层记忆卡的展开态（点击卡片查看逐条明细；跨重建保留，一次展开一层）
+    let memoryTierOpen = null;
+    function memoryEpisodicRows() {
+      // 因果口径：只列已推演轮沉淀的事件（与"情景记忆 N 条"计数同源），倒序=最新在前
+      const byId = Object.fromEntries(workbench.memory.items.map((item) => [item.id, item]));
+      const typeLabel = { memory_recall: "召回", memory_writeback: "回写", future_policy_shift: "策略" };
+      const rows = [];
+      for (const round of memoryLearningRounds()) {
+        for (const id of (round.decision.result_writeback.memory_event_ids || [])) {
+          const item = byId[id];
+          if (!item) continue;
+          let detail = "";
+          if (item.event_type === "memory_recall") {
+            const pool = round.experiencePool || {};
+            detail = pool.total > 0 ? `可借鉴 ${pool.total} 轮（同景 ${pool.same} + 相似 ${pool.similar}）` : "当天暂无可借鉴历史";
+          } else if (item.event_type === "memory_writeback") {
+            detail = `置信度 ${fmtNumber(round.confidenceBefore, 2)} → ${fmtNumber(round.confidenceAfter, 2)}`;
+          } else {
+            detail = displayMemoryText(item.strategy_summary || "");
+          }
+          rows.push({ t: round.timeLabel, type: typeLabel[item.event_type] || "事件", kind: item.event_type, sig: memorySignatureTitle(round.signature), detail });
+        }
+      }
+      return rows.reverse();
+    }
+    function renderMemoryTierDetail(tier) {
+      if (tier === "episodic") {
+        const rows = memoryEpisodicRows();
+        if (!rows.length) return `<div class="memory-tier-detail"><p class="mt-empty">尚无沉淀事件——推进时间轴后逐轮写入。</p></div>`;
+        return `<div class="memory-tier-detail">${rows.map((r) => `
+          <div class="mt-row" data-kind="${escapeHtml(r.kind)}"><i>${escapeHtml(r.t)}</i><em>${escapeHtml(r.type)}</em><span>${escapeHtml(r.sig)}</span><small>${escapeHtml(r.detail)}</small></div>`).join("")}</div>`;
+      }
+      if (tier === "semantic") {
+        const groups = memorySignatureGroups();
+        if (!groups.length) return `<div class="memory-tier-detail"><p class="mt-empty">尚无场景画像——每类场景首遇后归纳建档。</p></div>`;
+        return `<div class="memory-tier-detail">${groups.map((g) => `
+          <div class="mt-row" data-kind="semantic"><i>首现 ${escapeHtml(clock(g.firstTimeS))}</i><span>${escapeHtml(memorySignatureTitle(g.signature))}</span><small>共 ${g.rounds.length} 轮（复遇 ${Math.max(0, g.rounds.length - 1)}）· 累计省 ${fmtNumber(g.totalSaved, 1)} 分钟 · 置信峰值 ${fmtNumber(g.peakConfidence, 2)}</small></div>`).join("")}</div>`;
+      }
+      const policyRules = memoryDistinctPolicyRules();
+      if (!policyRules.length) return `<div class="memory-tier-detail"><p class="mt-empty">尚无全局策略——跨轮反思提炼后沉淀。</p></div>`;
+      return `<div class="memory-tier-detail">${policyRules.map((entry) => `
+        <div class="mt-row" data-kind="policy"><em>策略</em><span>${escapeHtml(displayMemoryText(entry.rule))}</span><small>命中 ${entry.count} 轮 · 置信峰值 ${fmtNumber(entry.peakConfidence, 2)}</small></div>`).join("")}</div>`;
+    }
     function renderMemoryHierarchy() {
       const evidence = memoryEvidence();
       const policyRules = memoryDistinctPolicyRules();
@@ -8523,25 +8604,27 @@
           <span>命中 ${entry.count} 轮 · 置信峰值 ${fmtNumber(entry.peakConfidence, 2)}</span>
         </div>
       `).join("");
+      const toggleHint = (tier) => memoryTierOpen === tier ? "收起明细 ▴" : "点击查看明细 ▾";
       return `
         <p class="memory-lead-note">记忆不是流水账：原始经历被逐层提炼，复遇场景召回的是已提炼的画像与策略，而不是重放全部原始事件——读取一条即代表多条，检索既快又稳。</p>
         <div class="memory-funnel">
-          <div class="memory-funnel-tier" data-tier="episodic">
+          <div class="memory-funnel-tier" data-tier="episodic" data-open="${memoryTierOpen === "episodic"}" role="button" tabindex="0">
             <div class="tier-head"><strong>情景记忆 · 原始决策事件</strong><b>${evidence.itemCount} 条</b></div>
             <p>每轮派单沉淀召回 / 回写 / 策略三类事件，保留完整现场：场景、动作与结果。</p>
-            <span class="tier-op">逐轮写入</span>
+            <span class="tier-op">逐轮写入</span><span class="tier-toggle">${toggleHint("episodic")}</span>
           </div>
-          <div class="memory-funnel-tier" data-tier="semantic">
+          <div class="memory-funnel-tier" data-tier="semantic" data-open="${memoryTierOpen === "semantic"}" role="button" tabindex="0">
             <div class="tier-head"><strong>语义记忆 · 场景画像</strong><b>${evidence.sceneCount} 类</b></div>
             <p>相似轮次被归纳成场景签名画像，并派生骑手 / 商圈 / 订单 ${profileCount} 类画像记忆。</p>
-            <span class="tier-op">反思归纳</span>
+            <span class="tier-op">反思归纳</span><span class="tier-toggle">${toggleHint("semantic")}</span>
           </div>
-          <div class="memory-funnel-tier" data-tier="policy">
+          <div class="memory-funnel-tier" data-tier="policy" data-open="${memoryTierOpen === "policy"}" role="button" tabindex="0">
             <div class="tier-head"><strong>策略记忆 · 全局先验</strong><b>${policyRules.length} 条</b></div>
             <p>跨时段仍然成立的调度规则，进入派单规划器前作为全局先验直接注入。</p>
-            <span class="tier-op">反思提炼</span>
+            <span class="tier-op">反思提炼</span><span class="tier-toggle">${toggleHint("policy")}</span>
           </div>
         </div>
+        ${memoryTierOpen ? renderMemoryTierDetail(memoryTierOpen) : ""}
         <p class="memory-hierarchy-note">下面是命中最多的全局策略，右侧标注它在全天被复用的轮数：</p>
         <div class="memory-rule-list">${topRules}</div>
       `;
@@ -8552,18 +8635,22 @@
 
     function memoryPipelineRound() {
       const rounds = memoryLearningRounds();
+      if (!rounds.length) return null;
       if (memoryPipelineRoundIndex != null) {
         const picked = rounds.find((r) => r.index === memoryPipelineRoundIndex);
         if (picked) return picked;
       }
-      const groups = memorySignatureGroups();
-      if (!groups.length) return null;
-      const fallbackSig = (memoryEvidence().bestRound || groups[0].rounds[0]).signature;
-      const sig = memorySelectedSignature || fallbackSig;
-      const group = groups.find((g) => g.signature === sig) || groups[0];
-      const repeats = group.rounds.filter((r) => r.encounter > 0);
-      const pool = repeats.length ? repeats : group.rounds;
-      return pool.reduce((sel, r) => (r.deltaSaved > (sel ? sel.deltaSaved : -1) ? r : sel), null);
+      // 用户点选了场景行：展示该场景的代表轮（省得最多的复遇轮）
+      if (memorySelectedSignature) {
+        const group = memorySignatureGroups().find((g) => g.signature === memorySelectedSignature);
+        if (group) {
+          const repeats = group.rounds.filter((r) => r.encounter > 0);
+          const pool = repeats.length ? repeats : group.rounds;
+          return pool.reduce((sel, r) => (r.deltaSaved > (sel ? sel.deltaSaved : -1) ? r : sel), null);
+        }
+      }
+      // 默认聚焦：当前推演到的最新一轮，随播放自动前移（用户要求：不点选时始终看"现在这一轮"）
+      return rounds[rounds.length - 1];
     }
 
     // 本轮“当天可借鉴”的具体历史轮（都在本轮之前，时间方向永远向过去）
@@ -8582,7 +8669,7 @@
       const caption = document.getElementById("memory-pipeline-caption");
       if (!host || !round) return;
       if (caption) {
-        const pickNote = memoryPipelineRoundIndex != null ? "（点选轮）" : "（该场景省得最多的一轮，点圆点可精确切换）";
+        const pickNote = memoryPipelineRoundIndex != null ? "（点选轮）" : memorySelectedSignature ? "（该场景省得最多的一轮，点圆点可精确切换）" : "（当前推演最新轮 · 随播放前移，点圆点/场景行可切换）";
         caption.textContent = `${round.timeLabel} 决策轮 · ${memorySignatureTitle(round.signature)} · ${memoryRoundShortState(round)} ${pickNote}`;
       }
       // 同步矩阵点的“正在解剖”标记
@@ -9172,6 +9259,18 @@
       }
       const replayBtn = document.getElementById("memory-replay-btn");
       if (replayBtn) replayBtn.addEventListener("click", toggleMemoryReplayPlayback);
+      // 记忆分层三卡：点击展开该层逐条明细（委托到卡片容器，整页重建后由 hydrate 重绑）
+      const hierarchyCard = document.getElementById("memory-hierarchy-card");
+      if (hierarchyCard && hierarchyCard.dataset.tierBound !== "true") {
+        hierarchyCard.dataset.tierBound = "true";
+        hierarchyCard.addEventListener("click", (event) => {
+          const tierNode = event.target.closest(".memory-funnel-tier");
+          if (!tierNode) return;
+          memoryTierOpen = memoryTierOpen === tierNode.dataset.tier ? null : tierNode.dataset.tier;
+          const body = hierarchyCard.querySelector(".card-body");
+          if (body) body.innerHTML = renderMemoryHierarchy();
+        });
+      }
       const replaySpeed = document.getElementById("memory-replay-speed");
       if (replaySpeed) {
         replaySpeed.value = String(memoryReplay.speed);
@@ -9299,8 +9398,14 @@
       return inBand && inArea && inRisk && inStatus;
     }
 
+    // 因果口径（v7）：订单只有到了真实下单时刻才对整页可见——07:25 不能看到 12:43 才下的单。
+    // 全天订单是仿真世界的预设输入，但「调度员视角」只能看见已发生的下单事件；
+    // 列表/概览/筛选计数/需求概览全部随推演时钟增长，23:00 自然对齐全天 355 单。
+    function releasedOrders() {
+      return workbench.entities.orders.filter(orderEnteredNow);
+    }
     function filteredOrders() {
-      return workbench.entities.orders.filter(orderMatchesFilters);
+      return releasedOrders().filter(orderMatchesFilters);
     }
 
     // 时间感知的「是否已进入推理」：订单的真实下单时刻 <= 当前推演时刻才算已释放/已进入（不再用整天静态标记）。
@@ -9397,20 +9502,20 @@
     }
 
     function renderOrdersOverview(orders) {
-      const enteredList = orders.filter(orderEnteredNow);            // 到当前推演时刻为止、真实已释放的订单
-      const entered = enteredList.length;
+      // filteredOrders 已是因果口径（只含已下单的单），这里全部是「截至当前时刻」的事实
       const highRisk = orders.filter((order) => order.risk_level === "high").length;
-      const improved = enteredList.filter((order) => {
-        if (!orderResultVisibleAt(oursModel, order.id) || !orderResultVisibleAt(baselineModel, order.id)) return false; // 双方都派出后才计入对比
+      const compared = orders.filter((order) => orderResultVisibleAt(oursModel, order.id) && orderResultVisibleAt(baselineModel, order.id));
+      const improved = compared.filter((order) => {
         const ours = Number(order.our_result.eta_min);
         const baseline = Number(order.baseline_result.eta_min);
         return Number.isFinite(ours) && Number.isFinite(baseline) && ours < baseline;
       }).length;
+      const assigned = orders.filter((order) => orderResultVisibleAt(oursModel, order.id)).length;
       return [
-        renderMetricChip("orders-visible", "全天订单全集", `${orders.length}`, "固定输入 · 只读证据"),
-        renderMetricChip("orders-entered", "已进入推理", `${entered}`, `截至 ${clockPrecise(inferenceState.currentTimeS)} 已按下单时间释放`),
-        renderMetricChip("orders-high-risk", "高风险", `${highRisk}`, "优先保护承诺送达"),
-        renderMetricChip("orders-improved", "已见改善", `${improved}/${entered}`, "已进入的单里我方预计更快")
+        renderMetricChip("orders-visible", "已下单", `${orders.length}`, `截至 ${clockPrecise(inferenceState.currentTimeS)} · 按真实下单时刻释放`),
+        renderMetricChip("orders-entered", "我方已派单", `${assigned}`, "派单时刻到点才揭示结果"),
+        renderMetricChip("orders-high-risk", "高风险", `${highRisk}`, "已下单中优先保护承诺送达"),
+        renderMetricChip("orders-improved", "已见改善", `${improved}/${compared.length}`, "两算法都派出的单里我方预计更快")
       ].join("");
     }
 
@@ -9432,7 +9537,7 @@
         .sort((left, right) => orderFocusScore(right) - orderFocusScore(left) || left.created_at_s - right.created_at_s)
         .slice(0, 6);
       if (!focusOrders.length) {
-        return `<div class="list-item"><strong>当前筛选无订单</strong><p>调整时间段、商圈、状态或风险筛选。</p></div>`;
+        return `<div class="list-item"><strong>暂无可见订单</strong><p>订单按真实下单时刻陆续释放——推进时间轴后出现；若已推进，请调整时间段、商圈、状态或风险筛选。</p></div>`;
       }
       return focusOrders.map((order) => {
         // 优势数字与两侧状态全走因果口径：两算法都真实派出后才亮出对比，不提前泄漏全天结果
@@ -9499,7 +9604,7 @@
           <div class="list-item" id="orders-time-distribution"><strong>释放节奏</strong>${renderOrderTimeLane(orders)}</div>
           <div class="list-item" id="orders-area-distribution"><strong>商圈热度</strong>${renderCountChips(areaCounts, 6, displayZone)}</div>
           <div class="list-item" id="orders-risk-distribution"><strong>风险结构</strong>${renderCountChips(riskCounts, 6, displayRisk)}</div>
-          <div class="list-item" id="orders-status-distribution"><strong>推理进度</strong>${renderCountChips(statusCounts, 6, displayStatus)}<p>订单全集只用于解释推理，不作为数据维护主叙事。</p></div>
+          <div class="list-item" id="orders-status-distribution"><strong>推理进度</strong>${renderCountChips(statusCounts, 6, displayStatus)}<p>只统计已下单的订单，随推演推进增长。</p></div>
         </div>
       `;
     }
@@ -9530,10 +9635,9 @@
       updateOrdersView();
       { // 挂载已按当前时刻渲染，记录签名基线避免首 tick 冗余重建
         const orders = filteredOrders();
-        const entered = orders.filter(orderEnteredNow).length;
         const assigned = orders.filter((o) => orderResultVisibleAt(oursModel, o.id) || orderResultVisibleAt(baselineModel, o.id)).length;
         const delivered = orders.filter((o) => orderRuntimeStatus(o) === "delivered").length;
-        ordersLastRuntimeSig = `${entered}/${assigned}/${delivered}`;
+        ordersLastRuntimeSig = `${orders.length}/${assigned}/${delivered}`;
       }
     }
 
@@ -9544,10 +9648,10 @@
       const priority = document.getElementById("orders-priority-list");
       if (priority) priority.innerHTML = renderOrderFocusList(orders);
       const body = document.getElementById("orders-table-body");
-      if (body) body.innerHTML = orders.map(renderOrderRow).join("") || `<tr><td colspan="7">当前筛选无订单，调整时间段、商圈、状态或风险。</td></tr>`;
+      if (body) body.innerHTML = orders.map(renderOrderRow).join("") || `<tr><td colspan="7">暂无可见订单——订单按真实下单时刻陆续释放；若已推进时间轴，可调整筛选条件。</td></tr>`;
       const context = document.getElementById("orders-context-panel");
       if (context) context.innerHTML = renderOrdersContext(orders);
-      setText("orders-result-count", `${orders.length} / ${workbench.entities.orders.length} 单`);
+      setText("orders-result-count", `${orders.length} / ${releasedOrders().length} 单（筛选后 / 已下单）`);
     }
 
     function renderCoverageCards(counts, total, limit = 5) {
