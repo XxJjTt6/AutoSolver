@@ -7469,7 +7469,7 @@
 
     function decisionAdvantageHeadline(decision) {
       const result = decision.round_result || {};
-      return `本轮节省 ${fmtNumber(result.time_saved_min || 0, 1)} 分钟`;
+      return `累计节省 ${fmtNumber(result.time_saved_min || 0, 1)} 分钟`;
     }
 
     function renderDecisionAdvantageHero(decision) {
