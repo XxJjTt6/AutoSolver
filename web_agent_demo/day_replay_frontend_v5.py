@@ -1760,8 +1760,6 @@ def render_day_replay_index() -> str:
       gap: 9px;
     }
     .timeline-item { text-align: left; width: 100%; border: 1px solid var(--line); background: #fff; border-radius: var(--radius-md); padding: 10px; box-shadow: 0 1px 2px rgba(15,23,42,.025); }
-    /* 未来轮次上锁：灰化不可点，随推演解锁（不提前展示未来决策） */
-    .timeline-item[data-locked="true"] { opacity: .45; filter: grayscale(.55); cursor: not-allowed; }
     .timeline-item:hover { border-color: rgba(15,118,110,.24); background: #fff; transform: translateY(-1px); }
     .timeline-item[data-active="true"] { border-color: rgba(15,118,110,.36); background: linear-gradient(180deg, rgba(230,244,241,.86), #fff); }
     .timeline-item strong { display: block; margin-bottom: 4px; font-size: 13px; }
@@ -2555,20 +2553,6 @@ def render_day_replay_index() -> str:
     .compare-legend-bar .map-legend { position: static; box-shadow: none; border: 0; padding: 0; max-width: none; background: transparent; gap: 10px 14px; }
     /* 指标趋势小图矩阵（2×2）：每格一个指标，随时间逐渐展开 */
     .compare-trends { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    /* 「开始后累计收益」条（原实时推理页累计对比栏迁来）：大数字叙事 + 三格明细 */
-    .compare-cum-title { margin-top: 12px; }
-    .compare-cumulative { display: grid; gap: 8px; }
-    .compare-cum-hero { display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border-radius: 12px; border: 1px solid #bbf7d0; background: linear-gradient(135deg, #f0fdf4, #ecfdf5); }
-    .compare-cum-hero[data-tone="tie"] { border-color: var(--line); background: #f8fafc; }
-    .compare-cum-hero b { font: 800 22px/1.2 var(--font); color: #047857; letter-spacing: -.01em; }
-    .compare-cum-hero[data-tone="tie"] b { color: var(--ink); }
-    .compare-cum-hero span { font: 600 11px/1.4 var(--font); color: var(--muted); }
-    .compare-cum-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-    .compare-cum-cell { display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: #fff; min-width: 0; }
-    .compare-cum-cell span { font: 700 10.5px/1.3 var(--font); color: var(--muted); }
-    .compare-cum-cell b { font: 800 14.5px/1.3 var(--font); color: var(--ink); white-space: nowrap; }
-    .compare-cum-cell i { font: 600 10.5px/1.35 var(--font); font-style: normal; color: var(--muted); }
-    @media (max-width: 1100px) { .compare-cum-grid { grid-template-columns: 1fr; } }
     .cmp-mini-card { border: 1px solid var(--line); border-radius: 10px; padding: 6px 9px 4px; background: #fff; }
     .cmp-mini-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
     .cmp-mini-head b { font-size: 12px; font-weight: 800; }
@@ -5457,17 +5441,13 @@ def render_day_replay_index() -> str:
       updateRidersView();
     }
 
-    // 订单页跟随全局时钟：释放/派单/送达都是因果口径，任一计数变化就重建（签名比较，省开销）。
-    let ordersLastRuntimeSig = "";
+    // 订单页跟随全局时钟：订单按真实下单时间「已进入推理」，随时刻推进逐步释放（只在已进入数变化时重建，省开销）。
+    let ordersLastEntered = -1;
     function renderOrdersRuntimeState() {
       if (!document.querySelector("[data-page='orders']")) return;
-      const orders = filteredOrders();
-      const entered = orders.filter(orderEnteredNow).length;
-      const assigned = orders.filter((o) => orderResultVisibleAt(oursModel, o.id) || orderResultVisibleAt(baselineModel, o.id)).length;
-      const delivered = orders.filter((o) => orderRuntimeStatus(o) === "delivered").length;
-      const sig = `${entered}/${assigned}/${delivered}`;
-      if (sig === ordersLastRuntimeSig) return;
-      ordersLastRuntimeSig = sig;
+      const entered = filteredOrders().filter(orderEnteredNow).length;
+      if (entered === ordersLastEntered) return;
+      ordersLastEntered = entered;
       updateOrdersView();
     }
 
@@ -5532,34 +5512,9 @@ def render_day_replay_index() -> str:
       });
     }
     // 决策页跟随全局时钟：自动定位到当前推演时刻对应的那一轮（切页/播放都生效）。
-    let decisionsLastUnlocked = -1;
     function renderDecisionsRuntimeState() {
       if (!document.querySelector("[data-page='decisions']")) return;
       bindLlmStrategyOnce(); // 「千问生成策略」按钮/开关的事件委托（幂等）
-      // 解锁刷新：已解锁轮次数变化时，原地更新列表锁定态（改属性不重建，不打断滚动位置）
-      const unlockedCount = workbench.decisions.filter(decisionUnlocked).length;
-      if (unlockedCount !== decisionsLastUnlocked) {
-        decisionsLastUnlocked = unlockedCount;
-        const byId = Object.fromEntries(workbench.decisions.map((item) => [item.id, item]));
-        for (const btn of document.querySelectorAll("#decision-timeline [data-decision-id]")) {
-          const item = byId[btn.dataset.decisionId];
-          if (!item) continue;
-          const locked = !decisionUnlocked(item);
-          if ((btn.dataset.locked === "true") !== locked) {
-            btn.dataset.locked = String(locked);
-            const reasonSpan = btn.querySelector("strong + span");
-            if (reasonSpan) reasonSpan.textContent = locked ? "🔒 待推演解锁" : displayTriggerReason(item.trigger_reason);
-            if (locked) btn.title = `推演到 ${item.trigger_time_label} 后解锁，不提前展示未来决策`;
-            else btn.removeAttribute("title");
-          }
-        }
-        // 之前处于占位态（无已解锁选中）→ 第一时间选中最新解锁轮，替换占位内容
-        const current = decisionById(selectedDecisionId);
-        if ((!current || !decisionUnlocked(current)) && unlockedCount > 0) {
-          const unlockedList = workbench.decisions.filter(decisionUnlocked);
-          selectDecisionRound(unlockedList[unlockedList.length - 1].id);
-        }
-      }
       if (!inferenceState.started) return;
       const d = decisionForTime(inferenceState.currentTimeS);
       if (d && d.id && d.id !== selectedDecisionId && workbench.decisions.some((x) => x.id === d.id)) {
@@ -5938,27 +5893,26 @@ def render_day_replay_index() -> str:
 
     function renderDecisionsPage() {
       const decision = selectedDecision();
-      const unlocked = decisionUnlocked(decision); // 初始选中轮若还没推演到：右侧渲染占位，不泄漏内容
       return `
-        ${pageHeader("decisions", "算法推理过程", "按时间回放每一轮派单推理：先看为什么触发，再看订单、骑手、过滤、评分、采纳和放弃原因。轮次随推演进度逐一解锁。")}
+        ${pageHeader("decisions", "算法推理过程", "按时间回放每一轮派单推理：先看为什么触发，再看订单、骑手、过滤、评分、采纳和放弃原因。")}
         ${renderGlobalClockStrip()}
         <div class="page-grid decision-grid" data-page="decisions" data-decision-route="reasoning">
           <div class="card">
             <div class="card-head"><h3>决策轮次时间线</h3><span id="decision-route-status">${workbench.decisions.length} 轮决策</span></div>
             <div id="decision-timeline" class="card-body timeline-list decision-scroll">
-              ${renderDecisionTimeline(unlocked ? decision.id : "")}
+              ${renderDecisionTimeline(decision.id)}
             </div>
           </div>
           <div class="card">
-            <div class="card-head"><h3>本轮推理说明</h3><span id="decision-reasoning-phase">${unlocked ? escapeHtml(displayDemandPhase(decision.context.demand_phase)) : "待解锁"}</span></div>
+            <div class="card-head"><h3>本轮推理说明</h3><span id="decision-reasoning-phase">${escapeHtml(displayDemandPhase(decision.context.demand_phase))}</span></div>
             <div id="decision-reasoning-canvas" class="card-body decision-canvas">
-              ${unlocked ? renderDecisionReasoning(decision) : renderDecisionLockedPlaceholder()}
+              ${renderDecisionReasoning(decision)}
             </div>
           </div>
           <aside class="card">
-            <div class="card-head"><h3>本轮输入与输出</h3><span id="decision-context-slice">${unlocked ? `${escapeHtml(displayDemandPhase(decision.context.demand_phase))}场景` : "待解锁"}</span></div>
+            <div class="card-head"><h3>本轮输入与输出</h3><span id="decision-context-slice">${escapeHtml(displayDemandPhase(decision.context.demand_phase))}场景</span></div>
             <div id="decision-context-pane" class="card-body compact-list">
-              ${unlocked ? renderDecisionContext(decision) : renderDecisionLockedPlaceholder()}
+              ${renderDecisionContext(decision)}
             </div>
           </aside>
         </div>
@@ -7309,19 +7263,14 @@ def render_day_replay_index() -> str:
       if (!timeline) return;
       timeline.addEventListener("click", (event) => {
         const button = event.target.closest("[data-decision-id]");
-        if (button && button.dataset.locked !== "true") selectDecisionRound(button.dataset.decisionId);
+        if (button) selectDecisionRound(button.dataset.decisionId);
       });
-      // 默认选中「最贴近当前推演时刻的已解锁轮」；一轮都没解锁则保持占位（renderDecisionsPage 已渲染）
-      const unlockedList = workbench.decisions.filter(decisionUnlocked);
-      const preferred = decisionById(selectedDecisionId);
-      const target = (preferred && decisionUnlocked(preferred)) ? preferred : unlockedList[unlockedList.length - 1];
-      if (target) selectDecisionRound(target.id);
+      selectDecisionRound(selectedDecisionId || workbench.decisions[0]?.id);
     }
 
     function selectDecisionRound(decisionId) {
       const decision = decisionById(decisionId);
       if (!decision) return;
-      if (!decisionUnlocked(decision)) return; // 未来轮次上锁：不切换、不渲染内容
       selectedDecisionId = decision.id;
       const timeline = document.getElementById("decision-timeline");
       if (timeline) {
@@ -7338,33 +7287,18 @@ def render_day_replay_index() -> str:
       if (contextPane) contextPane.innerHTML = renderDecisionContext(decision);
     }
 
-    // 决策轮次的因果口径：只有 trigger 时刻 ≤ 当前推演时刻的轮次可以点开看内容——
-    // 否则 09:00 就能翻看 22:00 的完整未来决策（输入/派单/放弃原因），未来信息泄漏。
-    // 未来轮次灰化上锁、随播放逐一解锁（列表仍完整可见，评委能预期全天有多少轮）。
-    function decisionUnlocked(decision) {
-      return Number(decision.trigger_time_s) <= inferenceState.currentTimeS;
-    }
     function renderDecisionTimeline(activeId) {
-      return workbench.decisions.map((item, index) => {
-        const locked = !decisionUnlocked(item);
-        return `
-        <button class="timeline-item" data-decision-id="${escapeHtml(item.id)}" data-active="${item.id === activeId}" data-locked="${locked}"${locked ? ` title="推演到 ${escapeHtml(item.trigger_time_label)} 后解锁，不提前展示未来决策"` : ""}>
+      return workbench.decisions.map((item, index) => `
+        <button class="timeline-item" data-decision-id="${escapeHtml(item.id)}" data-active="${item.id === activeId}">
           <strong>第 ${index + 1} 轮 / ${escapeHtml(item.trigger_time_label)}</strong>
-          <span>${locked ? "🔒 待推演解锁" : escapeHtml(displayTriggerReason(item.trigger_reason))}</span>
+          <span>${escapeHtml(displayTriggerReason(item.trigger_reason))}</span>
           <span class="timeline-meta">
             <em>${item.input_order_ids.length} 单</em>
             <em>${item.candidate_rider_ids.length} 名骑手</em>
             <em>${escapeHtml(displayDemandPhase(item.context.demand_phase))}</em>
           </span>
         </button>
-      `;
-      }).join("");
-    }
-    // 尚无已解锁轮次时右侧两栏的占位（未开始推理 / 时间轴还没走到第一轮）
-    function renderDecisionLockedPlaceholder() {
-      const first = workbench.decisions[0];
-      const firstLabel = first ? first.trigger_time_label : "";
-      return `<div class="cso-empty">决策轮次按<b>真实触发时刻</b>逐一解锁：开始推理并把时间轴推进过 ${escapeHtml(firstLabel)}，第 1 轮的输入、过滤、评分与派单结论会在这里展开——不提前展示未来决策。</div>`;
+      `).join("");
     }
 
     function renderDecisionStage(stageId, title, count, body) {
@@ -9397,7 +9331,8 @@ def render_day_replay_index() -> str:
       const inArea = orderFilterState.area === "all" || order.business_area === orderFilterState.area;
       const inRisk = orderFilterState.risk === "all" || order.risk_level === orderFilterState.risk;
       const inStatus = orderFilterState.status === "all"
-        || orderRuntimeStatus(order) === orderFilterState.status;
+        || order.status === orderFilterState.status
+        || (orderFilterState.status === "entered_inference" && orderEnteredNow(order));
       return inBand && inArea && inRisk && inStatus;
     }
 
@@ -9410,23 +9345,6 @@ def render_day_replay_index() -> str:
     function orderEnteredNow(order) {
       const t = Number(order.created_at_s);
       return Number.isFinite(t) && t <= inferenceState.currentTimeS;
-    }
-    // 「算法结果」的因果口径：某算法对该单的派单结果，只有该算法**真实派出后**（assign_at_s ≤ 当前推演时刻）
-    // 才在订单池揭示。后端预计算的全天最终结果直接上表格会泄漏未来（09:39 就能看到 09:48 下单的单
-    // 将派给谁/几分钟）。判定源与双屏同单对照完全同一套 orderLifecycle，两处永远一致。
-    function orderResultVisibleAt(model, orderId) {
-      const life = model && model.orderLifecycle ? model.orderLifecycle[orderId] : null;
-      return !!(life && life.dispatched && Number.isFinite(life.assign_at_s) && life.assign_at_s <= inferenceState.currentTimeS);
-    }
-    // 订单在当前推演时刻的真实状态机：待释放 → 已进推理 → 已分配 → 已送达（我方视角，与地图状态同源）。
-    // 后端静态 status 是全天最终态（一律"已分配/已送达"），直接显示会出现"还没下单就已分配"的穿越。
-    function orderRuntimeStatus(order) {
-      if (!orderEnteredNow(order)) return "scheduled";
-      const life = oursModel.orderLifecycle[order.id];
-      const T = inferenceState.currentTimeS;
-      if (life && life.dispatched && Number.isFinite(life.complete_at_s) && life.complete_at_s <= T) return "delivered";
-      if (orderResultVisibleAt(oursModel, order.id)) return "assigned";
-      return order.risk_level === "high" ? "late_risk" : "entered_inference";
     }
 
     function riderMatchesFilters(rider) {
@@ -9503,7 +9421,6 @@ def render_day_replay_index() -> str:
       const entered = enteredList.length;
       const highRisk = orders.filter((order) => order.risk_level === "high").length;
       const improved = enteredList.filter((order) => {
-        if (!orderResultVisibleAt(oursModel, order.id) || !orderResultVisibleAt(baselineModel, order.id)) return false; // 双方都派出后才计入对比
         const ours = Number(order.our_result.eta_min);
         const baseline = Number(order.baseline_result.eta_min);
         return Number.isFinite(ours) && Number.isFinite(baseline) && ours < baseline;
@@ -9537,10 +9454,8 @@ def render_day_replay_index() -> str:
         return `<div class="list-item"><strong>当前筛选无订单</strong><p>调整时间段、商圈、状态或风险筛选。</p></div>`;
       }
       return focusOrders.map((order) => {
-        // 优势数字与两侧状态全走因果口径：两算法都真实派出后才亮出对比，不提前泄漏全天结果
-        const bothVisible = orderResultVisibleAt(oursModel, order.id) && orderResultVisibleAt(baselineModel, order.id);
         const etaGain = orderEtaAdvantage(order);
-        const advantage = bothVisible ? (etaGain > 0 ? `我方预计快 ${fmtNumber(etaGain, 1)} 分钟` : "两算法结果接近") : "等待两算法派单后对比";
+        const advantage = etaGain > 0 ? `我方预计快 ${fmtNumber(etaGain, 1)} 分钟` : "等待对比结果";
         return `
           <article class="order-focus-card" data-order-focus="${escapeHtml(order.id)}" data-risk="${escapeHtml(order.risk_level)}">
             <div class="focus-card-top">
@@ -9551,8 +9466,8 @@ def render_day_replay_index() -> str:
             <p>${escapeHtml(order.created_at_label)} 下单，${escapeHtml(order.promised_at_label)} 前送达。</p>
             <p>${escapeHtml(advantage)}；${orderEnteredNow(order) ? "已进入推理" : "等待按时间释放"}。</p>
             <div class="chip-list">
-              <span class="data-chip">基线 ${orderResultVisibleAt(baselineModel, order.id) ? "已派单" : "待派单"}</span>
-              <span class="data-chip">我方 ${orderResultVisibleAt(oursModel, order.id) ? "已派单" : "待派单"}</span>
+              <span class="data-chip">基线 ${escapeHtml(displayStatus(order.baseline_result?.state || "scheduled"))}</span>
+              <span class="data-chip">我方 ${escapeHtml(displayStatus(order.our_result?.state || "scheduled"))}</span>
             </div>
           </article>
         `;
@@ -9606,13 +9521,9 @@ def render_day_replay_index() -> str:
       `;
     }
 
-    function renderAlgorithmResult(result, model, order) {
+    function renderAlgorithmResult(result) {
       if (!result || result.state !== "assigned") {
         return `<div class="result-pair"><b>未释放</b><span>${escapeHtml(candidateLabel(result?.algorithm_id || "-"))}</span></div>`;
-      }
-      if (model && order && !orderResultVisibleAt(model, order.id)) {
-        // 后端已算出该算法的最终结果，但推演还没走到它真实派单的时刻——不提前揭示（与双屏对照卡同口径）
-        return `<div class="result-pair"><b>待派单</b><span>${escapeHtml(candidateLabel(result.algorithm_id || "-"))} · 推进时间轴后揭示</span></div>`;
       }
       return `
         <div class="result-pair">
@@ -9630,13 +9541,7 @@ def render_day_replay_index() -> str:
         });
       }
       updateOrdersView();
-      { // 挂载已按当前时刻渲染，记录签名基线避免首 tick 冗余重建
-        const orders = filteredOrders();
-        const entered = orders.filter(orderEnteredNow).length;
-        const assigned = orders.filter((o) => orderResultVisibleAt(oursModel, o.id) || orderResultVisibleAt(baselineModel, o.id)).length;
-        const delivered = orders.filter((o) => orderRuntimeStatus(o) === "delivered").length;
-        ordersLastRuntimeSig = `${entered}/${assigned}/${delivered}`;
-      }
+      ordersLastEntered = filteredOrders().filter(orderEnteredNow).length; // 挂载已按当前时刻渲染，记录基线避免首 tick 冗余重建
     }
 
     function updateOrdersView() {
@@ -9755,14 +9660,14 @@ def render_day_replay_index() -> str:
 
     function renderOrderRow(order) {
       return `
-        <tr data-order-id="${escapeHtml(order.id)}" data-order-status="${escapeHtml(orderRuntimeStatus(order))}" data-order-risk="${escapeHtml(order.risk_level)}" data-order-area="${escapeHtml(order.business_area)}">
+        <tr data-order-id="${escapeHtml(order.id)}" data-order-status="${escapeHtml(order.status)}" data-order-risk="${escapeHtml(order.risk_level)}" data-order-area="${escapeHtml(order.business_area)}">
           <td>${escapeHtml(orderDisplayLabelForId(order.id))}${customFlagHtml(order.id)}</td>
           <td>${escapeHtml(merchantAliasForId(order.merchant_id))}<br><span>${escapeHtml(displayZone(order.business_area))}</span></td>
           <td>${escapeHtml(order.created_at_label)} 下单<br><span>${escapeHtml(order.promised_at_label)} 承诺送达</span></td>
-          <td><span class="badge" data-state="${escapeHtml(orderRuntimeStatus(order))}">${escapeHtml(displayStatus(orderRuntimeStatus(order)))}</span><br><span class="badge" data-risk="${escapeHtml(order.risk_level)}">${escapeHtml(displayRisk(order.risk_level))}</span></td>
+          <td><span class="badge" data-state="${escapeHtml(order.status)}">${escapeHtml(displayStatus(order.status))}</span><br><span class="badge" data-risk="${escapeHtml(order.risk_level)}">${escapeHtml(displayRisk(order.risk_level))}</span></td>
           <td>${orderEnteredNow(order) ? "已进入" : "未释放"}</td>
-          <td>${renderAlgorithmResult(order.baseline_result, baselineModel, order)}</td>
-          <td>${renderAlgorithmResult(order.our_result, oursModel, order)}</td>
+          <td>${renderAlgorithmResult(order.baseline_result)}</td>
+          <td>${renderAlgorithmResult(order.our_result)}</td>
         </tr>
       `;
     }
@@ -9937,8 +9842,6 @@ def render_day_replay_index() -> str:
               <div class="compare-trend-wrap">
                 <div class="compare-section-title">核心指标趋势 · 随时间分化 <span class="compare-hint">（红=基线 / 绿=我方）</span></div>
                 <div id="compare-trends" class="compare-trends"></div>
-                <div class="compare-section-title compare-cum-title">开始后累计收益 <span class="compare-hint">（推演到哪算到哪 · 不提前展示全日结论）</span></div>
-                <div id="compare-cumulative" class="compare-cumulative"></div>
               </div>
             </div>
             </div>
@@ -10115,14 +10018,48 @@ def render_day_replay_index() -> str:
         const t = inferenceState.currentTimeS;
         renderCompareScoreboard(t);
         renderCompareTrends(t);
-        renderCompareCumulative(t);
         renderCompareMini(t);
         renderCompareSameOrder(t);
       }
     }
 
+    // 慢单判断阈值（分钟）：25 分钟为当前演示选定的长时订单阈值，可按场景配置；不是行业统一标准或官方赛题标准。
+    const SLOW_ORDER_THRESHOLD_MIN = 25;
+
+    // 慢单率（截至 T）：送达时长(下单→送达)超过阈值的已完成订单 ÷ 已完成订单。
+    // 直接数两套模型的真实生命周期（与地图/同单卡同源），比 P95 更直观：每 100 单里有几单让用户久等。
+    function slowOrderStats(model, T) {
+      const life = model.orderLifecycle || {};
+      let delivered = 0, slow = 0;
+      for (const id in life) {
+        const l = life[id];
+        if (!l.dispatched || !Number.isFinite(l.complete_at_s) || l.complete_at_s > T) continue;
+        delivered++;
+        if ((l.complete_at_s - l.created_at_s) / 60 > SLOW_ORDER_THRESHOLD_MIN) slow++;
+      }
+      return { delivered, slow, ratePct: delivered ? (slow / delivered) * 100 : 0 };
+    }
+
+    // 慢单率随时间的序列：按送达时刻一趟扫描，返回每个时间点的累计慢单率（%）（用于趋势曲线；后端 series 无此字段）。
+    function slowOrderRateSeries(model, timePoints) {
+      const life = model.orderLifecycle || {};
+      const events = [];
+      for (const id in life) {
+        const l = life[id];
+        if (l.dispatched && Number.isFinite(l.complete_at_s)) {
+          events.push([l.complete_at_s, (l.complete_at_s - l.created_at_s) / 60 > SLOW_ORDER_THRESHOLD_MIN ? 1 : 0]);
+        }
+      }
+      events.sort((a, b) => a[0] - b[0]);
+      let done = 0, slow = 0, ei = 0;
+      return timePoints.map((t) => {
+        while (ei < events.length && events[ei][0] <= t) { done++; slow += events[ei][1]; ei++; }
+        return done ? (slow / done) * 100 : 0;
+      });
+    }
+
     // 骑手负载分布（截至 T 每个骑手累计被派多少单）——直接数两套模型的真实生命周期，与地图/记分牌同源。
-    // 最忙骑手单量 = 该算法把负载压到单个骑手身上的峰值；越低越均衡，不累垮个别骑手（我方 load_penalty 的真实体现）。
+    // 现仅用于记分牌「负载不均·极差」行（最忙骑手指标在合单档差距收窄，已移除）。
     function courierLoadStats(model, T) {
       const load = {};
       const life = model.orderLifecycle || {};
@@ -10139,39 +10076,19 @@ def render_day_replay_index() -> str:
       return { max: Math.max(...vals), min: Math.min(...vals), std, range: Math.max(...vals) - Math.min(...vals), count: n, load };
     }
 
-    // 「最忙骑手累计单量」随时间的序列：按 assign 时刻一趟扫描，返回每个时间点的当前最大单量（用于负载趋势曲线）。
-    function courierMaxLoadSeries(model, timePoints) {
-      const life = model.orderLifecycle || {};
-      const events = [];
-      for (const id in life) {
-        const l = life[id];
-        if (l.dispatched && l.courier_id && Number.isFinite(l.assign_at_s)) events.push([l.assign_at_s, l.courier_id]);
-      }
-      events.sort((a, b) => a[0] - b[0]);
-      const load = {}; let curMax = 0, ei = 0;
-      return timePoints.map((t) => {
-        while (ei < events.length && events[ei][0] <= t) {
-          const c = events[ei][1];
-          load[c] = (load[c] || 0) + 1;
-          if (load[c] > curMax) curMax = load[c];
-          ei++;
-        }
-        return curMax;
-      });
-    }
-
     function renderCompareScoreboard(T) {
       const el = document.getElementById("compare-scoreboard"); if (!el) return;
       const _s = scoreForTime(T); const b = _s.baseline || {}, o = _s.ours || {}; // 质量指标用后端真实 series
       const bc = modelCounts(baselineModel, T), oc = modelCounts(oursModel, T);   // 计数用真实生命周期，与地图一致
       const bl = courierLoadStats(baselineModel, T), ol = courierLoadStats(oursModel, T); // 负载均衡
+      const bs = slowOrderStats(baselineModel, T), os = slowOrderStats(oursModel, T);     // 慢单率（长尾体验）
       const onTime = (m) => 100 * (((m.delivered_orders || 0) - (m.late_orders || 0)) / Math.max(1, m.delivered_orders || 0)); // 准时率=(已送达-超时)/已送达
-      // 口径顺序：先亮我方真正拉开差距的「准时率/超时/均时/负载均衡/累计节省」，单均成本（距离主导、天然差距小）降为次要。
+      // 口径顺序：先亮我方真正拉开差距的「准时率/超时/均时/慢单率/负载均衡/累计节省」，单均成本（距离主导、天然差距小）降为次要。
       const rows = [
         { k: "准时率(%)", bv: onTime(b), ov: onTime(o), better: "high", d: 1 },
         { k: "超时单", bv: b.late_orders, ov: o.late_orders, better: "low", d: 0 },
         { k: "平均送达时长(min)", bv: b.avg_eta_min, ov: o.avg_eta_min, better: "low", d: 1 },
-        { k: "最忙骑手接单量(单)", bv: bl.max, ov: ol.max, better: "low", d: 0 },
+        { k: `慢单率(%·>${SLOW_ORDER_THRESHOLD_MIN}min)`, bv: bs.ratePct, ov: os.ratePct, better: "low", d: 1 },
         { k: "负载不均·极差(单)", bv: bl.range, ov: ol.range, better: "low", d: 0 },
         { k: "累计配送成本(元)", bv: b.total_cost_yuan, ov: o.total_cost_yuan, better: "low", d: 0 },
         { k: "单均配送成本(元)", bv: (b.total_cost_yuan || 0) / Math.max(1, b.delivered_orders || 0), ov: (o.total_cost_yuan || 0) / Math.max(1, o.delivered_orders || 0), better: "low", d: 2 },
@@ -10195,7 +10112,9 @@ def render_day_replay_index() -> str:
       { key: "avg_eta_min", label: "平均送达时长", unit: "min", d: 1, better: "low" },
       { key: "on_time_rate", label: "准时率", unit: "%", d: 1, better: "high", get: (m) => 100 * (((m.delivered_orders || 0) - (m.late_orders || 0)) / Math.max(1, m.delivered_orders || 0)) },
       { key: "cost_per_order", label: "单均配送成本", unit: "元/单", d: 2, better: "low", get: (m) => (m.total_cost_yuan || 0) / Math.max(1, m.delivered_orders || 0) }
-      // 「累计超时单」与准时率语义重复，按用户要求移除（记分牌里的超时单数字行仍保留）
+      // 「累计超时单」与准时率语义重复，按用户要求移除（记分牌里的超时单数字行仍保留）；
+      // 「最忙骑手接单量」在合单档差距收窄（43 vs 42）→ 曾换成 P95 送达时长 → 又因 P95 与均时曲线语义相近，
+      // 最终换成「慢单率(>25min)」：更直观（每 100 单几单让用户久等）、差距更大（第 4 张卡为现算的 compareSlowRateTrendCard）。
     ];
     function renderCompareTrends(T) {
       const el = document.getElementById("compare-trends"); if (!el) return;
@@ -10203,48 +10122,14 @@ def render_day_replay_index() -> str:
       if (!series.length) { el.innerHTML = ""; return; }
       const _s = scoreForTime(T); const bCur = _s.baseline || {}, oCur = _s.ours || {}; // 后端真实当前值
       el.innerHTML = COMPARE_TREND_METRICS.map((m) => compareMiniTrendCard(series, m, T, bCur, oCur)).join("")
-        + compareLoadTrendCard(series, T); // 追加「最忙骑手」负载趋势曲线（红=基线随时间被压高、绿=我方摊平压低）
+        + compareSlowRateTrendCard(series, T); // 追加「慢单率」趋势曲线（红=基线高峰被压高、绿=我方贴地）
     }
-
-    // 「开始后累计收益」条（原实时推理页「实时累计对比栏」的精华，迁到双屏）：
-    // 数据与 live 完全同源（scoreForTime 读后端逐帧 scorecard），推演到哪累计到哪，不提前展示全日结论。
-    function renderCompareCumulative(T) {
-      const el = document.getElementById("compare-cumulative");
-      if (!el) return;
-      if (!inferenceState.started) {
-        el.innerHTML = `<div class="cso-empty">开始推理后，这里实时累计我方相对基线的收益：节省的顾客等待、配送成本与超时单差异。</div>`;
-        return;
-      }
-      const score = scoreForTime(T);
-      const d = score.deltas || {}, b = score.baseline || {}, o = score.ours || {};
-      const finished = T >= workbench.timeline.end_s;
-      const timeSaved = Number(d.time_saved_min || 0);
-      const moneySaved = Number(d.money_saved_yuan || 0);
-      // 如实三态：领先/持平/暂时落后都按真实数字显示，不把负值粉饰成"持平"（合单批次前期投入
-      // 会让我方成本在早段短暂偏高，这是真实策略行为——照实展示，反而是"没造假"的证据）。
-      const heroTie = Math.abs(timeSaved) <= 0.05;
-      const heroText = finished ? `全日推演完成 · 共节省 ${fmtNumber(timeSaved, 1)} 分钟`
-        : heroTie ? "两算法当前基本持平"
-        : timeSaved > 0 ? `已节省 ${fmtNumber(timeSaved, 1)} 分钟` : `当前暂多用 ${fmtNumber(-timeSaved, 1)} 分钟`;
-      const moneyText = Math.abs(moneySaved) <= 0.05 ? "持平" : moneySaved > 0 ? `省 ${fmtNumber(moneySaved, 1)} 元` : `暂多 ${fmtNumber(-moneySaved, 1)} 元`;
-      el.innerHTML = `
-        <div class="compare-cum-hero" data-tone="${timeSaved > 0.05 ? "win" : "tie"}">
-          <b>${escapeHtml(heroText)}</b>
-          <span>顾客等待总时长 · 我方 ${fmtNumber(o.total_time_cost_min, 1)} min / 基线 ${fmtNumber(b.total_time_cost_min, 1)} min</span>
-        </div>
-        <div class="compare-cum-grid">
-          <div class="compare-cum-cell"><span>配送成本</span><b>${escapeHtml(moneyText)}</b><i>我方 ${fmtNumber(o.total_cost_yuan, 1)} / 基线 ${fmtNumber(b.total_cost_yuan, 1)} 元</i></div>
-          <div class="compare-cum-cell"><span>超时单</span><b>${fmtFewer(d.timeout_order_delta, "单")}</b><i>我方 ${o.late_orders ?? 0} / 基线 ${b.late_orders ?? 0} 单</i></div>
-          <div class="compare-cum-cell"><span>推演进度</span><b>${fmtNumber(inferenceProgressPct(), 1)}%</b><i>截至 ${clockPrecise(T)} · 已送达 ${deliveredCountAt(T)} 单</i></div>
-        </div>
-      `;
-    }
-    // 负载趋势曲线：与其它趋势小图同样式，但值来自前端按时间现算的「最忙骑手累计单量」（后端 series 无此字段）。
-    function compareLoadTrendCard(series, T) {
+    // 慢单率趋势曲线：与其它趋势小图同样式，但值来自前端按送达事件现算的累计慢单率（后端 series 无此字段）。
+    function compareSlowRateTrendCard(series, T) {
       const W = 100, H = 44;
       const times = series.map((p) => p.time_s);
-      const bVals = courierMaxLoadSeries(baselineModel, times);
-      const oVals = courierMaxLoadSeries(oursModel, times);
+      const bVals = slowOrderRateSeries(baselineModel, times);
+      const oVals = slowOrderRateSeries(oursModel, times);
       const t0 = times[0], t1 = times[times.length - 1];
       const all = bVals.concat(oVals);
       let ymin = Math.min.apply(null, all), ymax = Math.max.apply(null, all);
@@ -10265,11 +10150,13 @@ def render_day_replay_index() -> str:
       };
       const bPath = revealPath(bVals), oPath = revealPath(oVals);
       const nowX = xOf(T).toFixed(1);
-      const bv = courierLoadStats(baselineModel, T).max, ov = courierLoadStats(oursModel, T).max;
+      const bs = slowOrderStats(baselineModel, T), os = slowOrderStats(oursModel, T);
+      const bv = bs.ratePct, ov = os.ratePct;
       const better = ov < bv - 1e-9;
       const gap = Math.abs(bv - ov);
-      return `<div class="cmp-mini-card">
-        <div class="cmp-mini-head"><b>最忙骑手接单量</b><span class="cmp-mini-vals"><i class="cmp-b">${escapeHtml(fmtNumber(bv, 0))}</i> / <i class="cmp-o">${escapeHtml(fmtNumber(ov, 0))}</i> 单${better ? ` <em class="cmp-mini-gap">优 ${escapeHtml(fmtNumber(gap, 0))}</em>` : ""}</span></div>
+      const tip = `慢单率 = 送达时长超过 ${SLOW_ORDER_THRESHOLD_MIN} 分钟的订单数 ÷ 已完成订单数（当前 基线 ${bs.slow}/${bs.delivered} 单，我方 ${os.slow}/${os.delivered} 单）。${SLOW_ORDER_THRESHOLD_MIN} 分钟为当前演示的长时订单判断阈值，可配置，非行业统一标准。`;
+      return `<div class="cmp-mini-card" title="${escapeHtml(tip)}">
+        <div class="cmp-mini-head"><b>慢单率 (&gt;${SLOW_ORDER_THRESHOLD_MIN} min)</b><span class="cmp-mini-vals"><i class="cmp-b">${escapeHtml(fmtNumber(bv, 1))}</i> / <i class="cmp-o">${escapeHtml(fmtNumber(ov, 1))}</i> %${better ? ` <em class="cmp-mini-gap">优 ${escapeHtml(fmtNumber(gap, 1))}</em>` : ""}</span></div>
         <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="cmp-mini-svg">
           ${bPath ? `<path d="${bPath}" fill="none" stroke="#dc2626" stroke-width="1.4" vector-effect="non-scaling-stroke"></path>` : ""}
           ${oPath ? `<path d="${oPath}" fill="none" stroke="#0f766e" stroke-width="1.9" vector-effect="non-scaling-stroke"></path>` : ""}
