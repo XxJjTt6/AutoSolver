@@ -2255,13 +2255,11 @@
       border-radius: inherit;
       background: linear-gradient(90deg, var(--accent), #22c55e);
     }
-    .mini-map .map-dot[data-kind="home"] { --size: 9px; background: #64748b; }
     .mini-map .map-dot[data-kind="linked-order"] { --size: 8px; background: var(--amber); }
     /* 小地图核对区卡头图例：与小地图点同色系，评委不用猜点的含义 */
     .rider-map-legend { display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; font-size: 11.5px; color: var(--muted); }
     .rider-map-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-left: 10px; }
     .rider-map-legend i[data-kind="rider"] { background: var(--accent); }
-    .rider-map-legend i[data-kind="home"] { background: #64748b; width: 8px; height: 8px; }
     .rider-map-legend i[data-kind="linked-order"] { background: var(--amber); width: 8px; height: 8px; }
     .memory-item {
       display: grid;
@@ -6150,7 +6148,7 @@
             </aside>
           </div>
           <section class="card rider-evidence-shell" id="rider-evidence-panel" data-evidence-role="secondary">
-            <div class="card-head"><h3>骑手小地图核对</h3><span class="rider-map-legend"><i data-kind="rider"></i>骑手当前位置（实心=配送中 / 空心=空闲）<i data-kind="home"></i>驻点<i data-kind="linked-order"></i>服务中订单的客户</span><span>位置、负载和任务链，仅作二级证据</span></div>
+            <div class="card-head"><h3>骑手小地图核对</h3><span class="rider-map-legend"><i data-kind="rider"></i>骑手当前位置（实心=配送中 / 空心=空闲）<i data-kind="linked-order"></i>服务中订单的客户</span><span>位置、负载和任务链，仅作二级证据</span></div>
             <div id="rider-resource-board" class="rider-board">
               ${riders.map(renderRiderCard).join("")}
             </div>
@@ -9781,7 +9779,6 @@
       const riderMapLabel = mapEntityLabel("rider", rider);
       return `
         <div class="mini-map" data-rider-mini-map="${escapeHtml(rider.id)}">
-          <span class="map-dot" data-kind="home" title="驻点" style="--x:${rider.mini_map.home.screen_x};--y:${rider.mini_map.home.screen_y}"></span>
           <span class="map-dot" data-kind="rider" data-map-ref="${escapeHtml(riderMapLabel)}" title="${escapeHtml(mapEntityTitle("rider", riderMapLabel, {phase: riderOnlineStateNow(rider)}))}" style="--x:${rider.position.screen_x};--y:${rider.position.screen_y}"></span>
           ${linkedOrders.map((order) => {
             const orderMapLabel = mapEntityLabel("order", order);
