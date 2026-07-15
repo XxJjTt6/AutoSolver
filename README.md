@@ -1,26 +1,27 @@
-# FOR_AutoSolver
+# AutoSolver 外卖配送智能调度工作台
 
-美团 AI Hackathon 命题四 `AutoSolver` 提交版项目。目录包含正式比赛求解器、网页端 Agent 展示系统、复现测试和最终说明文档。
+美团 AI Hackathon 命题四项目。系统在同一批订单、同一条时间轴上并行运行两套调度方案：左侧是最近距离贪心基线，右侧是 AutoSolver Agent，让调度差异、决策依据和长期记忆都能直接查看。
 
-## 项目组成
+**在线演示：** [https://xxjjtt6.github.io/AI-Hackahton_meituan/](https://xxjjtt6.github.io/AI-Hackahton_meituan/)
 
-| 部分 | 路径 | 说明 |
-|---|---|---|
-| 正式求解器 | `solver.py` | 官方评测热路径，保留 `solve(input_text: str) -> list`，无第三方运行时依赖。 |
-| Agent 后端 | `autosolver_agent/` | 负责感知、规划、策略试跑、自动评估、自进化实验、回退和报告。 |
-| Web 展示 | `web_agent_demo/` | 本地网页入口，通过 SSE 展示 Agent 求解过程。 |
-| 样例数据 | `data/official_cases/`、`web_agent_demo/generated_cases/` | 复现和演示使用的样例输入。 |
-| 测试与工具 | `tests/`、`tools/`、`_bench.py` | 单元测试、页面测试、打包脚本和基准检查。 |
-| 文档 | `docs/` | 产品说明、项目文档、作品简介、架构图和截图证据。 |
-| 官方记录 | `archive/runs/official_submit_20260520_132026_70222083.json` | 保留的官方提交记录。 |
+## 核心页面
 
-更完整的目录说明见 [docs/PROJECT_STRUCTURE.md](docs/PROJECT_STRUCTURE.md)。
+| 页面 | 主要内容 |
+|---|---|
+| 双屏对比 | 左右同步回放同一订单流，对照路线、等待时间、配送成本和超时情况。 |
+| 决策过程 | 展示每轮触发原因、候选过滤、策略评分、最终派单及放弃原因。 |
+| 长期记忆 | 展示经验召回、结果回写、场景复用和策略迁移。 |
+| 订单池 | 按推演时钟查看已经下单的订单、风险和两套算法的处理结果。 |
+| 骑手运力 | 查看骑手班次、位置、负载、任务链和预计空闲时间。 |
 
-## 运行展示
+## 快速运行
+
+环境要求：Python 3.10 或更高版本。核心演示使用 Python 标准库，不需要执行 `pip install`。
+
+在终端进入解压后的项目根目录，然后运行：
 
 ```bash
-cd /Users/比赛/FOR_AutoSolver_706.20_提交版
-python3 web_agent_demo/server.py --host 127.0.0.1 --port 8765
+python3 web_agent_demo/server_v7.py --host 127.0.0.1 --port 8765
 ```
 
 浏览器打开：
@@ -29,26 +30,33 @@ python3 web_agent_demo/server.py --host 127.0.0.1 --port 8765
 http://127.0.0.1:8765
 ```
 
-页面中选择样例后点击 `启动 Agent 求解`，即可查看 Perception、Planner、Strategy Trials、Critic、Controller、Memory 和 Self-Evolving Code Loop 的实时事件。
+如果 `8765` 端口已被占用，可以把命令中的端口改为 `8766`，并打开对应地址。
 
-## 验证命令
+## 建议演示顺序
+
+1. 在“双屏对比”点击“开始推理”，先看两套算法在同一时间轴上的结果分化。
+2. 进入“决策过程”，选择一轮派单，查看采纳和放弃方案的原因。
+3. 进入“长期记忆”，查看经验如何被召回、回写并用于后续场景。
+4. 最后用“订单池”和“骑手运力”核对每轮决策的输入状态。
+
+## 项目结构
+
+| 路径 | 说明 |
+|---|---|
+| `solver.py` | 正式比赛求解入口。 |
+| `autosolver/`、`autosolver_agent/` | 求解算法、Agent 控制、评估和记忆模块。 |
+| `web_agent_demo/server_v7.py` | 当前本地演示入口。 |
+| `web_agent_demo/day_replay_frontend_v7.py` | 当前五页调度工作台。 |
+| `tests/` | 算法、仿真、对比、记忆和页面测试。 |
+| `docs/` | 产品说明、技术文档和项目结构说明。 |
+
+`server.py`、`server_v2.py` 至 `server_v6.py` 及对应前端文件仅保留为历史迭代记录，当前演示请使用 `server_v7.py`。
+
+## 验证
 
 ```bash
-python3 -m py_compile solver.py autosolver/*.py autosolver_agent/*.py web_agent_demo/server.py tools/*.py _bench.py
-python3 -m unittest discover -s tests -p 'test_*.py'
-python3 _bench.py solver.py 1
+python3 -m py_compile web_agent_demo/server_v7.py
+python3 -m unittest tests.test_dispatch_workbench_data
 ```
 
-生成交付包：
-
-```bash
-python3 tools/make_submission.py --output submission_final
-```
-
-## 文档入口
-
-- [文档中心](docs/README.md)
-- [产品说明文档](docs/deliverables/产品说明文档.md)
-- [项目文档](docs/deliverables/项目文档.md)
-
-正式成绩只引用官方提交记录；网页端本地评估值只用于解释 Agent 决策过程，不作为官方成绩。
+页面中的对比数据用于演示和解释两套调度方案，不替代比赛官方评测结果。详细说明见 [文档中心](docs/README.md)。
