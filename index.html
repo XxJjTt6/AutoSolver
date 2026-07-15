@@ -3561,7 +3561,7 @@
       tickMs: 1000,
       lastTickAt: 0
     };
-    let selectedDecisionId = workbench.decisions[0]?.id || "";
+    let selectedDecisionId = "";
     const orderIndex = Object.fromEntries(workbench.entities.orders.map((order) => [order.id, order]));
     // ---- 订单生命周期模型（时间真值，前后端一致）----------------------------
     // 目标：地图上的每一个元素都严格由「真实时间戳」决定，绝不提前展示未来订单。
@@ -4672,6 +4672,8 @@
       };
       setPill(/骑手/, stats.rider_count, nR, "骑手");
       setPill(/下单/, releasedOrderCountNow(), nO, "已下单");
+      const decisionPill = [...strip.querySelectorAll(".stat-pill")].find((pill) => /决策轮次/.test(pill.textContent));
+      if (decisionPill) decisionPill.querySelector("b").textContent = String(decisionRoundOrdinal(inferenceState.currentTimeS));
     }
 
     // 把所有「临时单动画 + 空闲临时骑手」按当前时刻画到 liveInjectLayer；每帧调用即随时钟跑起来。
@@ -5442,8 +5444,7 @@
       return n;
     }
     function globalClockRoundLabel() {
-      const total = workbench.decisions.length;
-      return `第 ${inferenceState.started ? decisionRoundOrdinal(inferenceState.currentTimeS) : 0} / ${total} 轮`;
+      return `已发生 ${decisionRoundOrdinal(inferenceState.currentTimeS)} 轮`;
     }
     function globalClockPlayLabel() {
       return inferenceState.running ? "⏸ 暂停" : (inferenceState.started ? "▶ 继续" : "▶ 开始推理");
@@ -5493,28 +5494,33 @@
     let decisionsLastUnlocked = -1;
     function renderDecisionsRuntimeState() {
       if (!document.querySelector("[data-page='decisions']")) return;
-      // 解锁刷新：已解锁轮次数变化时，原地更新列表锁定态（改属性不重建，不打断滚动位置）
+      // 只渲染已经实际发生的轮次；新轮触发时再追加，不能提前暴露未来时刻、订单数或场景。
       const unlockedCount = workbench.decisions.filter(decisionUnlocked).length;
       if (unlockedCount !== decisionsLastUnlocked) {
+        const previousUnlocked = decisionsLastUnlocked;
         decisionsLastUnlocked = unlockedCount;
-        const byId = Object.fromEntries(workbench.decisions.map((item) => [item.id, item]));
-        for (const btn of document.querySelectorAll("#decision-timeline [data-decision-id]")) {
-          const item = byId[btn.dataset.decisionId];
-          if (!item) continue;
-          const locked = !decisionUnlocked(item);
-          if ((btn.dataset.locked === "true") !== locked) {
-            btn.dataset.locked = String(locked);
-            const reasonSpan = btn.querySelector("strong + span");
-            if (reasonSpan) reasonSpan.textContent = locked ? "🔒 待推演" : displayTriggerReason(item.trigger_reason);
-            if (locked) btn.title = `将于 ${item.trigger_time_label} 触发`;
-            else btn.removeAttribute("title");
-          }
+        const timeline = document.getElementById("decision-timeline");
+        if (timeline) {
+          const scrollTop = timeline.scrollTop;
+          timeline.innerHTML = renderDecisionTimeline(selectedDecisionId);
+          timeline.scrollTop = scrollTop;
         }
-        // 之前处于占位态（无已解锁选中）→ 第一时间选中最新解锁轮，替换占位内容
-        const current = decisionById(selectedDecisionId);
-        if ((!current || !decisionUnlocked(current)) && unlockedCount > 0) {
+        if (unlockedCount > 0) {
           const unlockedList = workbench.decisions.filter(decisionUnlocked);
-          selectDecisionRound(unlockedList[unlockedList.length - 1].id);
+          const current = decisionById(selectedDecisionId);
+          if (previousUnlocked <= 0 || !current || !decisionUnlocked(current)) {
+            selectDecisionRound(unlockedList[unlockedList.length - 1].id);
+          }
+        } else {
+          selectedDecisionId = "";
+          setText("decision-route-status", "0 轮已发生");
+          setText("decision-reasoning-phase", "等待事件");
+          setText("decision-context-slice", "等待事件");
+          const placeholder = renderDecisionLockedPlaceholder();
+          const reasoning = document.getElementById("decision-reasoning-canvas");
+          if (reasoning) reasoning.innerHTML = placeholder;
+          const contextPane = document.getElementById("decision-context-pane");
+          if (contextPane) contextPane.innerHTML = placeholder;
         }
       }
       if (!inferenceState.started) return;
@@ -5661,7 +5667,7 @@
       document.getElementById("topbar-stats").innerHTML = [
         ["已下单", releasedOrderCountNow()],
         ["骑手", stats.rider_count],
-        ["决策轮次", stats.decision_count],
+        ["决策轮次", decisionRoundOrdinal(inferenceState.currentTimeS)],
         ["优势验证", "开始后累计"]
       ].map(([label, value]) => `
         <div class="stat-pill"><b>${escapeHtml(value)}</b><span>${escapeHtml(label)}</span></div>
@@ -5914,7 +5920,7 @@
         ${renderGlobalClockStrip()}
         <div class="page-grid decision-grid" data-page="decisions" data-decision-route="reasoning">
           <div class="card">
-            <div class="card-head"><h3>决策轮次时间线</h3><span id="decision-route-status">${workbench.decisions.length} 轮决策</span></div>
+            <div class="card-head"><h3>决策轮次时间线</h3><span id="decision-route-status">${decisionRoundOrdinal(inferenceState.currentTimeS)} 轮已发生</span></div>
             <div id="decision-timeline" class="card-body timeline-list decision-scroll">
               ${renderDecisionTimeline(unlocked ? decision.id : "")}
             </div>
@@ -7265,11 +7271,13 @@
     }
 
     function decisionById(decisionId) {
-      return workbench.decisions.find((item) => item.id === decisionId) || workbench.decisions[0];
+      return workbench.decisions.find((item) => item.id === decisionId) || null;
     }
 
     function selectedDecision() {
-      const decision = decisionById(selectedDecisionId);
+      const preferred = decisionById(selectedDecisionId);
+      const visibleDecisions = workbench.decisions.filter(decisionUnlocked);
+      const decision = preferred && decisionUnlocked(preferred) ? preferred : (visibleDecisions[visibleDecisions.length - 1] || null);
       selectedDecisionId = decision?.id || "";
       return decision;
     }
@@ -7308,19 +7316,21 @@
       if (contextPane) contextPane.innerHTML = renderDecisionContext(decision);
     }
 
-    // 决策轮次的因果口径：只有 trigger 时刻 ≤ 当前推演时刻的轮次可以点开看内容——
-    // 否则 09:00 就能翻看 22:00 的完整未来决策（输入/派单/放弃原因），未来信息泄漏。
-    // 未来轮次灰化上锁、随播放逐一解锁（列表仍完整可见，评委能预期全天有多少轮）。
+    // 决策轮次的因果口径：只有 trigger 时刻 ≤ 当前推演时刻的轮次可以出现并被查看。
     function decisionUnlocked(decision) {
-      return Number(decision.trigger_time_s) <= inferenceState.currentTimeS;
+      return Boolean(decision) && Number(decision.trigger_time_s) <= inferenceState.currentTimeS;
     }
     function renderDecisionTimeline(activeId) {
-      return workbench.decisions.map((item, index) => {
-        const locked = !decisionUnlocked(item);
+      const visibleDecisions = workbench.decisions.filter(decisionUnlocked);
+      if (!visibleDecisions.length) {
+        return `<div class="cso-empty">尚无已发生的决策轮。开始推理后，只有实际触发的轮次才会按发生顺序出现在这里。</div>`;
+      }
+      return visibleDecisions.map((item) => {
+        const index = workbench.decisions.indexOf(item);
         return `
-        <button class="timeline-item" data-decision-id="${escapeHtml(item.id)}" data-active="${item.id === activeId}" data-locked="${locked}"${locked ? ` title="将于 ${escapeHtml(item.trigger_time_label)} 触发"` : ""}>
+        <button class="timeline-item" data-decision-id="${escapeHtml(item.id)}" data-active="${item.id === activeId}" data-locked="false">
           <strong>第 ${index + 1} 轮 / ${escapeHtml(item.trigger_time_label)}</strong>
-          <span>${locked ? "🔒 待推演" : escapeHtml(displayTriggerReason(item.trigger_reason))}</span>
+          <span>${escapeHtml(displayTriggerReason(item.trigger_reason))}</span>
           <span class="timeline-meta">
             <em>${item.input_order_ids.length} 单</em>
             <em>${item.candidate_rider_ids.length} 名骑手</em>
@@ -7330,11 +7340,9 @@
       `;
       }).join("");
     }
-    // 尚无已解锁轮次时右侧两栏的占位（未开始推理 / 时间轴还没走到第一轮）
+    // 尚无已发生轮次时右侧两栏只解释机制，不泄漏首轮发生时间或未来订单。
     function renderDecisionLockedPlaceholder() {
-      const first = workbench.decisions[0];
-      const firstLabel = first ? first.trigger_time_label : "";
-      return `<div class="cso-empty">开始推理并把时间轴推进过 ${escapeHtml(firstLabel)}，第 1 轮的输入、过滤、评分与派单结论将在这里展开。</div>`;
+      return `<div class="cso-empty">当前还没有已发生的决策轮。开始推理后，系统会在订单实际进入并触发调度时，展开当轮输入、过滤、评分与派单结论。</div>`;
     }
 
     function renderDecisionStage(stageId, title, count, body) {
