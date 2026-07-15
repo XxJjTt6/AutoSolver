@@ -25,10 +25,10 @@
 ## 运行演示
 
 ```bash
-python3 web_agent_demo/server_v7.py --host 127.0.0.1 --port 8765
+python3 web_agent_demo/server_v7.py --host 127.0.0.1 --port 8799
 ```
 
-打开 `http://127.0.0.1:8765`。也可以直接访问 [GitHub Pages 在线演示](https://xxjjtt6.github.io/AI-Hackahton_meituan/)。
+打开 `http://127.0.0.1:8799`。也可以直接访问 [GitHub Pages 在线演示](https://xxjjtt6.github.io/AI-Hackahton_meituan/)。
 
 ## 统一说明
 

@@ -21,16 +21,14 @@
 在终端进入解压后的项目根目录，然后运行：
 
 ```bash
-python3 web_agent_demo/server_v7.py --host 127.0.0.1 --port 8765
+python3 web_agent_demo/server_v7.py --host 127.0.0.1 --port 8799
 ```
 
 浏览器打开：
 
 ```text
-http://127.0.0.1:8765
+http://127.0.0.1:8799
 ```
-
-如果 `8765` 端口已被占用，可以把命令中的端口改为 `8766`，并打开对应地址。
 
 ## 建议演示顺序
 
