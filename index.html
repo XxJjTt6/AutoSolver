@@ -2257,6 +2257,12 @@
     }
     .mini-map .map-dot[data-kind="home"] { --size: 9px; background: #64748b; }
     .mini-map .map-dot[data-kind="linked-order"] { --size: 8px; background: var(--amber); }
+    /* 小地图核对区卡头图例：与小地图点同色系，评委不用猜点的含义 */
+    .rider-map-legend { display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; font-size: 11.5px; color: var(--muted); }
+    .rider-map-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-left: 10px; }
+    .rider-map-legend i[data-kind="rider"] { background: var(--accent); }
+    .rider-map-legend i[data-kind="home"] { background: #64748b; width: 8px; height: 8px; }
+    .rider-map-legend i[data-kind="linked-order"] { background: var(--amber); width: 8px; height: 8px; }
     .memory-item {
       display: grid;
       gap: 8px;
@@ -6144,9 +6150,9 @@
             </aside>
           </div>
           <section class="card rider-evidence-shell" id="rider-evidence-panel" data-evidence-role="secondary">
-            <div class="card-head"><h3>骑手小地图核对</h3><span>位置、负载和任务链，仅作二级证据</span></div>
+            <div class="card-head"><h3>骑手小地图核对</h3><span class="rider-map-legend"><i data-kind="rider"></i>骑手当前位置（实心=配送中 / 空心=空闲）<i data-kind="home"></i>驻点<i data-kind="linked-order"></i>服务中订单的客户</span><span>位置、负载和任务链，仅作二级证据</span></div>
             <div id="rider-resource-board" class="rider-board">
-              ${riders.slice(0, 8).map(renderRiderCard).join("")}
+              ${riders.map(renderRiderCard).join("")}
             </div>
           </section>
         </div>
@@ -9749,7 +9755,7 @@
       const focus = document.getElementById("riders-capacity-list");
       if (focus) focus.innerHTML = renderRiderFocusList(riders);
       const board = document.getElementById("rider-resource-board");
-      if (board) board.innerHTML = riders.slice(0, 8).map(renderRiderCard).join("") || `<div class="list-item"><strong>当前筛选无骑手</strong><p>调整区域或在线状态筛选。</p></div>`;
+      if (board) board.innerHTML = riders.map(renderRiderCard).join("") || `<div class="list-item"><strong>当前筛选无骑手</strong><p>调整区域或在线状态筛选。</p></div>`;
       const context = document.getElementById("rider-context-panel");
       if (context) context.innerHTML = renderRidersContext(riders);
       setText("riders-result-count", `${riders.length} / ${workbench.entities.riders.length} 名骑手`);
