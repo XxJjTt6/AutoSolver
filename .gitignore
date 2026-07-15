@@ -4,8 +4,6 @@ __pycache__/
 .env
 .venv/
 venv/
-.claude/
-.learnings/
 autosolver_agent/evolution_state/
 autosolver_agent/evolution_state/generated_strategies/
 autosolver_agent/evolution_state/evolution_memory.jsonl
@@ -14,17 +12,27 @@ web_agent_demo/.simulation_memory/
 submission_dryrun/
 submission_final/
 
-# 验证截图（本地工作产物，不入库）
-_前端v2验证截图/
+# 根目录只保留正式 README，本地文档与媒体不入库
+/*.md
+!/README.md
+/*.png
+/*.jpg
+/*.jpeg
+*.pptx
+*.docx
+*.pdf
+*.zip
 
-# 非代码产物 / 工作素材（不入库，只留项目原生代码）
-goal/
-docs/
-output/
-archive/
-data/official_cases/image001.png
-Agent Harness+Loop Engineering.md
-Agent长期记忆设计以及一些比较新的资料.md
-决赛评审标准.png
-赛题描述.png
-微信图片_*.jpg
+# docs 只保留公开交付文档
+docs/**
+!docs/README.md
+!docs/PROJECT_STRUCTURE.md
+!docs/deliverables/
+!docs/deliverables/作品简介.md
+!docs/deliverables/产品说明文档.md
+!docs/deliverables/项目文档.md
+data/official_cases/*.png
+
+# 备份文件不入库
+web_agent_demo/*原版备份*.py
+web_agent_demo/route_cache_*_backup.json
