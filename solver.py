@@ -1,3 +1,5 @@
+"""Competition-ready entrypoint for cost-aware courier-task assignment."""
+
 _M='max_willingness'
 _L='min_score'
 _K='task_id_list'
