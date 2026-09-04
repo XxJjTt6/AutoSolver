@@ -1,6 +1,6 @@
 # 项目目录结构
 
-本文说明当前 v7 版本的主要文件。正式求解器、网页演示和历史版本彼此独立，评委可以按下表快速定位。
+本文说明当前 v9 版本的主要文件。正式求解器、网页演示和历史版本彼此独立，评委可以按下表快速定位。
 
 ## 核心目录
 
@@ -19,8 +19,8 @@
 
 | 路径 | 作用 |
 |---|---|
-| `web_agent_demo/server_v7.py` | 当前本地启动入口；复用基础服务并加载 v7 工作台。 |
-| `web_agent_demo/day_replay_frontend_v7.py` | 生成双屏对比、决策过程、长期记忆、订单池和骑手运力五个页面。 |
+| `web_agent_demo/server_v9.py` | 当前本地启动入口；复用基础服务并加载 v9 工作台。 |
+| `web_agent_demo/day_replay_frontend_v9.py` | 生成双屏对比、已发生决策、长期记忆、订单池和骑手运力五个页面。 |
 | `web_agent_demo/day_simulation.py` | 生成同一订单流下的基线与 AutoSolver 全天对照结果。 |
 | `web_agent_demo/dispatch_workbench_data.py` | 把仿真结果整理为页面需要的订单、骑手、决策和记忆数据。 |
 | `web_agent_demo/compare_engine.py` | 运行候选算法比较和评分。 |
@@ -31,18 +31,18 @@
 启动方式：
 
 ```bash
-python3 web_agent_demo/server_v7.py --host 127.0.0.1 --port 8799
+python3 web_agent_demo/server_v9.py --host 127.0.0.1 --port 8799
 ```
 
 ## 版本边界
 
 | 文件 | 状态 |
 |---|---|
-| `server_v7.py`、`day_replay_frontend_v7.py` | 当前正式演示版本。 |
-| `server.py`、`server_v2.py` 至 `server_v6.py` | 历史服务入口，保留用于回看迭代。 |
-| `day_replay_frontend.py`、`day_replay_frontend_v2.py` 至 `day_replay_frontend_v6.py` | 历史页面版本，不作为当前启动入口。 |
+| `server_v9.py`、`day_replay_frontend_v9.py` | 当前正式演示版本。 |
+| `server.py`、`server_v2.py` 至 `server_v8.py` | 历史服务入口，保留用于回看迭代。 |
+| `day_replay_frontend.py`、`day_replay_frontend_v2.py` 至 `day_replay_frontend_v8.py` | 历史页面版本，不作为当前启动入口。 |
 
-历史文件不会影响 `server_v7.py` 的运行，也不需要在演示前删除。
+历史文件不会影响 `server_v9.py` 的运行，也不需要在演示前删除。
 
 ## 数据与运行态文件
 
@@ -59,8 +59,8 @@ python3 web_agent_demo/server_v7.py --host 127.0.0.1 --port 8799
 ## 页面数据链路
 
 ```text
-server_v7.py
-  -> day_replay_frontend_v7.py
+server_v9.py
+  -> day_replay_frontend_v9.py
   -> run_full_day_comparison()
   -> build_dispatch_workbench_payload()
   -> 浏览器五页工作台
