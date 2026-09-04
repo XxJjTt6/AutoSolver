@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Local bench for solver.py: runs solve(text), reports time + proxy score."""
+"""Benchmark the competition solver with bundled cases and local proxy metrics.
+
+The proxy score is intended for repeatable development comparisons. It is not
+an official competition score and should not be presented as one.
+"""
 import importlib.util, sys, time
 from pathlib import Path
 
