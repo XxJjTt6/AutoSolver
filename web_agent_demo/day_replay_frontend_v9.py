@@ -7722,7 +7722,7 @@ def render_day_replay_index() -> str:
       overlay.querySelector("#rm-cancel").addEventListener("click", () => overlay.remove());
       overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
       overlay.querySelector("#rm-ok").addEventListener("click", () => {
-        const t2s = (v) => { const m2 = /^(\d{1,2}):(\d{2})/.exec(v || ""); return m2 ? (Number(m2[1]) * 3600 + Number(m2[2]) * 60) : 12 * 3600; };
+        const t2s = (v) => { const m2 = /^(\\d{1,2}):(\\d{2})/.exec(v || ""); return m2 ? (Number(m2[1]) * 3600 + Number(m2[2]) * 60) : 12 * 3600; };
         const simNow = Math.round(inferenceState.currentTimeS || 7 * 3600); // 因果约束基准：当前推演时刻
         const body = kind === "order"
           ? { type: "order", sim_time_s: simNow, merchant_id: overlay.querySelector("#rm-merchant").value, created_at_s: t2s(overlay.querySelector("#rm-time").value) }
@@ -9555,7 +9555,7 @@ def render_day_replay_index() -> str:
       return _riderMotionCache.map;
     }
     function parseShiftEndS(label) {
-      const m = /(\d{1,2}):(\d{2})\D+(\d{1,2}):(\d{2})/.exec(label || "");
+      const m = /(\\d{1,2}):(\\d{2})\\D+(\\d{1,2}):(\\d{2})/.exec(label || "");
       return m ? (Number(m[3]) * 3600 + Number(m[4]) * 60) : null;
     }
     function riderOnlineStateNow(rider) {
