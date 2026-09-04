@@ -4,7 +4,7 @@
   <p>美团 AI Hackathon 2026 · 命题赛道 · 赛题 04「AutoSolver」</p>
   <p>
     <a href="#快速开始"><img src="https://img.shields.io/badge/LOCAL_DEMO-One_Command-FFC300?style=for-the-badge" alt="本地体验"></a>
-    <a href="https://github.com/XxJjTt6/AI-Hackahton_meituan"><img src="https://img.shields.io/badge/GitHub-XxJjTt6%2FAutoSolver-181717?style=for-the-badge&logo=github" alt="GitHub 仓库"></a>
+    <a href="https://github.com/XxJjTt6/AutoSolver"><img src="https://img.shields.io/badge/GitHub-XxJjTt6%2FAutoSolver-181717?style=for-the-badge&logo=github" alt="GitHub 仓库"></a>
     <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-2EA44F?style=for-the-badge" alt="MIT License"></a>
   </p>
@@ -196,10 +196,10 @@ AutoSolver 先统计任务数、骑手数、候选密度、平均意愿度和组
 
 ```bash
 # 克隆仓库。
-git clone https://github.com/XxJjTt6/AI-Hackahton_meituan.git
+git clone https://github.com/XxJjTt6/AutoSolver.git
 
 # 进入项目根目录。
-cd AI-Hackahton_meituan
+cd AutoSolver
 
 # 启动当前最终版 v9 调度工作台。
 python3 web_agent_demo/server_v9.py --host 127.0.0.1 --port 8799
@@ -235,7 +235,7 @@ for task_group, courier_ids in assignments:
 ## 项目结构
 
 ```text
-AI-Hackahton_meituan/
+AutoSolver/
 ├── solver.py                 # 比赛正式求解入口
 ├── solution.py               # 兼容不同评测导入方式的 API
 ├── example_solver.py         # 最小兼容入口示例
