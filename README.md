@@ -87,42 +87,11 @@ AutoSolver 为这类问题提供两条互相校验的链路：
 
 ## 系统架构
 
-```mermaid
-%%{init: {"theme": "base", "themeVariables": {"fontSize": "19px", "lineColor": "#64748b"}, "flowchart": {"nodeSpacing": 36, "rankSpacing": 42, "curve": "basis"}}}%%
-flowchart TB
-    A["01 输入层<br/>任务组合 · 骑手 · 分数 · 接单意愿"]
-    B["02 场景理解<br/>任务规模 · 运力稀缺 · 意愿度 · 合单特征"]
-    C["03 候选生成<br/>单任务候选 · 组合任务候选"]
-    D["04 多策略搜索<br/>贪心 · 匹配 · Set Cover · Min-Cost Flow · LNS"]
-    E["05 双层评估与门禁<br/>快速筛选 · 精确评估 · 合法性校验"]
-    F{"候选是否合法<br/>并优于当前最优解？"}
-    G["更新当前最优解<br/>best-so-far"]
-    H["拒绝当前候选<br/>继续尝试其他策略"]
-    I["确定性回退<br/>确保始终有合法结果"]
-    J["06 输出层<br/>任务组合 + 骑手列表"]
-    K["决策轨迹<br/>候选 · 评分 · 采纳/放弃原因"]
-    L["Agent 记忆<br/>结果回写 · 策略复用 · 下一轮先验"]
+<p align="center">
+  <img src="docs/assets/autosolver-system-architecture-v1.svg" alt="AutoSolver 系统架构：自适应搜索、证据门禁、确定性回退与记忆闭环" width="100%">
+</p>
 
-    A --> B --> C --> D --> E --> F
-    F -->|是| G --> J
-    F -->|否，仍有时间| H --> D
-    D -.->|时间不足或异常| I --> J
-    E -.-> K --> L
-
-    classDef layer fill:#eff6ff,stroke:#2563eb,stroke-width:2px,color:#0f172a;
-    classDef judge fill:#fff7ed,stroke:#d97706,stroke-width:2px,color:#7c2d12;
-    classDef success fill:#ecfdf5,stroke:#059669,stroke-width:2px,color:#064e3b;
-    classDef fallback fill:#fff1f2,stroke:#e11d48,stroke-width:2px,color:#881337;
-    classDef evidence fill:#f8fafc,stroke:#64748b,stroke-width:2px,color:#1e293b;
-
-    class A,B,C,D,E layer;
-    class F judge;
-    class G,J success;
-    class H,I fallback;
-    class K,L evidence;
-```
-
-主链路从上到下阅读；橙色节点负责候选门禁，绿色节点表示已验证的输出路径，红色节点是超时或异常时的稳定回退，灰色节点记录本轮证据并沉淀为后续策略经验。
+> 图中实线表示当前轮求解与验证路径，虚线表示异常回退、可审计证据和下一轮策略先验。图稿同时提供 [PDF 矢量版](docs/assets/autosolver-system-architecture-v1.pdf) 和 [600 DPI PNG](docs/assets/autosolver-system-architecture-v1.png)。
 
 对应到代码目录：
 
