@@ -3859,10 +3859,10 @@
       traffic_block: "道路拥堵"
     };
     const liveTileLayer = {
-      id: "cartodb-light-nolabels",
-      url: "https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png",
-      attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
-      subdomains: "abcd"
+      id: "openstreetmap-standard",
+      url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      subdomains: ""
     };
     let liveLeafletMap = null;
     let liveLeafletOverlayGroup = null;
