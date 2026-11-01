@@ -4,8 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>外卖配送智能调度工作台</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
-  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="assets/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="anonymous">
+  <script defer src="assets/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin="anonymous"></script>
+  <link rel="stylesheet" href="assets/maplibre/maplibre-gl.css">
+  <script defer src="assets/maplibre/maplibre-gl.js"></script>
+  <script defer src="assets/maplibre/leaflet-maplibre-gl.js"></script>
   <style>
     :root {
       --bg: #f3f5f8;
@@ -3859,11 +3862,36 @@
       traffic_block: "道路拥堵"
     };
     const liveTileLayer = {
-      id: "openstreetmap-standard",
-      url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-      subdomains: ""
+      id: "cartodb-positron-nolabels-vector",
+      style: "https://basemaps.cartocdn.com/gl/positron-nolabels-gl-style/style.json",
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attribution/">CARTO</a>'
     };
+
+    // 保留决赛的浅灰无文字底图；路线与订单仍由原来的 Leaflet 图层绘制。
+    function addWorkbenchBasemap(map) {
+      map.setMinZoom(1);
+      map.setMaxZoom(19);
+      const container = map.getContainer();
+      container.dataset.basemapStyle = liveTileLayer.id;
+      container.dataset.basemapStatus = "loading";
+      try {
+        const layer = window.L.maplibreGL({
+          style: liveTileLayer.style,
+          interactive: false,
+          attributionControl: { customAttribution: liveTileLayer.attribution }
+        }).addTo(map);
+        map.whenReady(() => {
+          const background = layer.getMaplibreMap();
+          background.on("load", () => { container.dataset.basemapStatus = "ready"; });
+          background.on("error", () => { container.dataset.basemapStatus = "error"; });
+        });
+        return layer;
+      } catch (error) {
+        container.dataset.basemapStatus = "error";
+        console.warn("CARTO background is unavailable; dispatch overlays remain usable", error);
+        return null;
+      }
+    }
     let liveLeafletMap = null;
     let liveLeafletOverlayGroup = null;
     let liveMapHydrationToken = "";
@@ -4849,7 +4877,7 @@
       const body = { time_s: Math.round(inferenceState.currentTimeS), context: currentSliceContext(), order: { merchant, destination: { lat: customer.lat, lng: customer.lng } }, riders };
       showInjectToast("后端算法实时派单中…");
       try {
-        const res = await fetch("/api/live-dispatch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const res = await fetch("api/live-dispatch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
         const data = await res.json();
         if (!data || data.status !== "ok") { showInjectToast("派单失败，请重试"); return; }
         // 把临时单变成「随时钟真正跑起来」的真实订单：记录派单时刻 + 取餐/总时长，动画交给 renderInjectedOverlay。
@@ -6867,11 +6895,7 @@
         map.on("movestart zoomstart", () => { liveMapInteracting = true; });
         map.on("moveend zoomend", () => { liveMapInteracting = false; });
         window.L.control.zoom({ position: "bottomright" }).addTo(map);
-        window.L.tileLayer(liveTileLayer.url, {
-          attribution: liveTileLayer.attribution,
-          maxZoom: 19,
-          subdomains: liveTileLayer.subdomains
-        }).addTo(map);
+        addWorkbenchBasemap(map);
         const bounds = mapBounds();
         if (bounds) map.fitBounds(bounds, { animate: false, padding: [18, 18] });
         else map.setView(mapPoint(workbench.map.center), 14);
@@ -7645,7 +7669,7 @@
       rosterBusy = true;
       try {
         // 添加秒回（后端只记花名册就返回），弹窗立即关闭；重算在后台跑，右下角横幅轮询进度、完成自动刷新。
-        const res = await fetch("/api/roster-add", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const res = await fetch("api/roster-add", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
         const data = await res.json();
         if (!(data && data.status === "ok")) {
           const box = overlay.querySelector(".roster-modal");
@@ -7670,7 +7694,7 @@
       if (rosterBusy) return;
       rosterBusy = true;
       try {
-        await fetch("/api/roster-clear", { method: "POST" });
+        await fetch("api/roster-clear", { method: "POST" });
         rosterWatch("已清除全部新增，后台正在恢复原始全天推演…完成后自动刷新");
       } catch (err) { rosterBusy = false; }
     }
@@ -7687,7 +7711,7 @@
       bar.textContent = `⏳ ${msg}`;
       const timer = window.setInterval(async () => {
         try {
-          const r = await fetch("/api/roster-status", { method: "POST" });
+          const r = await fetch("api/roster-status", { method: "POST" });
           const d = await r.json();
           if (d.recalc === "done") {
             window.clearInterval(timer);
@@ -10058,7 +10082,7 @@
       const mk = (id) => {
         const map = window.L.map(id, { attributionControl: true, zoomControl: false, boxZoom: false, doubleClickZoom: false, keyboard: false, scrollWheelZoom: true, preferCanvas: false, zoomAnimation: true, markerZoomAnimation: true, zoomSnap: 0.25, zoomDelta: 0.5, wheelPxPerZoomLevel: 160, wheelDebounceTime: 80 });
         window.L.control.zoom({ position: "bottomright" }).addTo(map);
-        window.L.tileLayer(liveTileLayer.url, { attribution: liveTileLayer.attribution, maxZoom: 19, subdomains: liveTileLayer.subdomains }).addTo(map);
+        addWorkbenchBasemap(map);
         const bounds = mapBounds();
         if (bounds) map.fitBounds(bounds, { animate: false, padding: [16, 16] });
         else map.setView(mapPoint(workbench.map.center), 14);
