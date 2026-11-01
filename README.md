@@ -3,7 +3,7 @@
   <p><strong>让 AI Agent 自主求解配送分配问题</strong></p>
   <p>美团 AI Hackathon 2026 · 命题赛道 · 赛题 04「AutoSolver」</p>
   <p>
-    <a href="#快速开始"><img src="https://img.shields.io/badge/LOCAL_DEMO-One_Command-FFC300?style=for-the-badge" alt="本地体验"></a>
+    <a href="http://47.93.220.66/autosolver/#/compare"><img src="https://img.shields.io/badge/LIVE_DEMO-Cloud_Server-FFC300?style=for-the-badge" alt="云端在线演示（推荐）"></a>
     <a href="https://github.com/XxJjTt6/AutoSolver"><img src="https://img.shields.io/badge/GitHub-XxJjTt6%2FAutoSolver-181717?style=for-the-badge&logo=github" alt="GitHub 仓库"></a>
     <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.10+"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-2EA44F?style=for-the-badge" alt="MIT License"></a>
@@ -13,10 +13,10 @@
 
 ---
 
-> **本地 Demo（推荐先体验）：`http://127.0.0.1:8799`**
+> **云端在线演示（推荐）：[点击立即体验 AutoSolver](http://47.93.220.66/autosolver/#/compare)**
 >
-> 无需登录、无需 API Key、无需安装第三方依赖。启动后可在同一订单流上同步对比“最近距离贪心”与 AutoSolver，继续下钻每轮决策、长期记忆、订单池和骑手运力。
-> 启动方法见 [快速开始](#快速开始)。
+> 无需登录、无需克隆仓库或安装依赖，打开即可在同一订单流上同步对比“最近距离贪心”与 AutoSolver，并查看每轮决策、长期记忆、订单池和骑手运力。云端也支持新增订单、骑手后的后端重算。
+> 演示地址：**[http://47.93.220.66/autosolver/](http://47.93.220.66/autosolver/#/compare)**。其他体验方式与本地启动说明见 [快速开始](#快速开始)。
 
 ---
 
@@ -161,6 +161,22 @@ AutoSolver 先统计任务数、骑手数、候选密度、平均意愿度和组
 
 ## 快速开始
 
+### 在线体验（推荐）
+
+**首选云服务器完整版：[打开 AutoSolver 调度工作台](http://47.93.220.66/autosolver/#/compare)。**
+
+直接打开链接，点击“开始推理”即可体验；建议按 [现场演示清单](#现场演示清单) 依次查看双屏对比、决策过程、长期记忆、订单池和骑手运力。
+
+| 体验方式 | 入口 | 适用场景 |
+|---|---|---|
+| **云服务器完整版（推荐）** | **[立即体验](http://47.93.220.66/autosolver/#/compare)** | 直接在线展示，支持完整推演与新增订单、骑手后的后端重算。 |
+| GitHub Pages 静态备用版 | [打开静态演示](https://xxjjtt6.github.io/AutoSolver/#/compare) | 浏览预置推演；需要后端重算时请使用云服务器完整版。 |
+| 本地运行 | [查看启动步骤](#本地运行) | 开发调试、复现或自行部署，需要先在自己的电脑上启动服务。 |
+
+云端展示使用 2026-07-15 决赛 v7 交付包；下面的本地启动命令对应当前仓库的 v9 工作台。
+
+### 本地运行
+
 **环境要求：** Python 3.10 或更高版本。核心求解器和本地工作台使用 Python 标准库，启动不需要 API Key，也不需要执行 `pip install`。
 
 ```bash
@@ -174,7 +190,7 @@ cd AutoSolver
 python3 web_agent_demo/server_v9.py --host 127.0.0.1 --port 8799
 ```
 
-浏览器打开 `http://127.0.0.1:8799` 即可体验。
+服务启动后，在本机浏览器打开 `http://127.0.0.1:8799` 即可体验；这个地址仅用于本地运行，对外展示请使用上方云端入口。
 
 ### 调用比赛求解器
 
